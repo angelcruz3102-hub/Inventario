@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>INDRHI - Inventario Tecnológico</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="header-container">
+      <div class="logo-area">
+        <span class="logo-icon">🖥️</span>
+        <h1>INDRHI</h1>
+      </div>
+      <p class="subtitle">Inventario Tecnológico de Estaciones de Trabajo</p>
+    </div>
+  </header>
+
+  <main>
+    <!-- Formulario de registro -->
+    <section class="card form-section">
+      <h2>📌 Nueva Estación de Trabajo</h2>
+      
+      <fieldset class="fieldset-ubicacion">
+        <legend>Ubicación</legend>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edificio">Edificio *</label>
+            <select id="edificio" required>
+              <option value="">Seleccione...</option>
+              <option value="Edificio Central">Edificio Central</option>
+              <option value="Edificio Anexo">Edificio Anexo</option>
+              <option value="Talleres">Talleres</option>
+              <option value="Almacén">Almacén</option>
+              <option value="Oficinas Administrativas">Oficinas Administrativas</option>
+              <option value="Laboratorio">Laboratorio</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="piso">Piso / Nivel</label>
+            <input type="text" id="piso" list="datalist-pisos" placeholder="Ej: 1, 2, Sótano...">
+            <datalist id="datalist-pisos"></datalist>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="departamento">Departamento *</label>
+            <input type="text" id="departamento" list="datalist-departamentos" placeholder="Ej: Recursos Humanos" required>
+            <datalist id="datalist-departamentos"></datalist>
+          </div>
+          <div class="form-group">
+            <label for="area">Área</label>
+            <input type="text" id="area" list="datalist-areas" placeholder="Ej: Contabilidad">
+            <datalist id="datalist-areas"></datalist>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label for="responsable">Responsable *</label>
+          <input type="text" id="responsable" placeholder="Nombre completo del responsable" required>
+        </div>
+      </div>
+
+      <!-- Sub-lista de equipos -->
+      <fieldset class="fieldset-equipos">
+        <legend>Equipos Asignados</legend>
+        <div class="equipos-form-inline">
+          <select id="tipo-equipo">
+            <option value="">Tipo...</option>
+            <option value="Computadora Escritorio">Computadora Escritorio</option>
+            <option value="Laptop">Laptop</option>
+            <option value="Monitor">Monitor</option>
+            <option value="Impresora">Impresora</option>
+            <option value="UPS">UPS</option>
+            <option value="Servidor">Servidor</option>
+            <option value="Switch">Switch</option>
+            <option value="Router">Router</option>
+            <option value="Teléfono IP">Teléfono IP</option>
+            <option value="Otro">Otro</option>
+          </select>
+          <input type="text" id="marca-equipo" placeholder="Marca">
+          <input type="text" id="serie-equipo" placeholder="Serie">
+          <input type="text" id="activo-equipo" placeholder="Activo Fijo">
+          <button type="button" id="btn-agregar-equipo" class="btn btn-add">+ Agregar</button>
+        </div>
+        <div class="equipos-temp-list" id="equipos-temp-list">
+          <p class="placeholder-text">No hay equipos agregados aún.</p>
+        </div>
+      </fieldset>
+
+      <div class="form-actions">
+        <button type="button" id="btn-limpiar-form" class="btn btn-secondary">🧹 Limpiar Formulario</button>
+        <button type="button" id="btn-guardar" class="btn btn-primary">💾 Guardar Estación</button>
+      </div>
+      <div id="form-status" class="status-message"></div>
+    </section>
+
+    <!-- Tabla de registros -->
+    <section class="card table-section">
+      <div class="table-header-bar">
+        <h2>📋 Estaciones Registradas</h2>
+        <button type="button" id="btn-recargar" class="btn btn-refresh">🔄 Sincronizar</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="tabla-registros">
+          <thead>
+            <tr>
+              <th>Edificio</th>
+              <th>Piso</th>
+              <th>Depto.</th>
+              <th>Área</th>
+              <th>Responsable</th>
+              <th>Equipos</th>
+              <th>Fecha</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-body">
+            <tr class="empty-row"><td colspan="8">Cargando registros...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-footer">
+        <span id="contador-registros">0 estaciones</span>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>INDRHI &copy; <span id="year"></span> - Sistema de Inventario Tecnológico v1.0</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
