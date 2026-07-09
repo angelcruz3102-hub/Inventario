@@ -1,5 +1,5 @@
 // ==================== CONFIGURACIÓN ====================
-const API_URL = "AQUI_URL"; // <-- Reemplaza con la URL de tu Web App de Google Apps Script
+const API_URL = "https://script.google.com/macros/s/AKfycbyROlORA0kKffdOW1w-uUHIRntakE7qR1RwxF5iq85x-wfB5xTMbgXF2WiaVGWsRsJr/exec"; // <-- Reemplaza con la URL de tu Web App de Google Apps Script
 
 // ==================== ESTADO GLOBAL ====================
 let registros = [];            // Todos los registros descargados
