@@ -9,15 +9,19 @@ let expandedRowId = null;
 let filters = { piso: '', departamento: '', area: '', responsable: '' };
 
 // ==================== ELEMENTOS DOM ====================
-// Registro
+// Registro – ubicación
 const formEdificio = document.getElementById('edificio');
 const formPiso = document.getElementById('piso');
 const formDepartamento = document.getElementById('departamento');
 const formArea = document.getElementById('area');
-const formResponsable = document.getElementById('responsable');
+// Nuevos campos de usuario
+const formAsignado = document.getElementById('asignado');
+const formCargo = document.getElementById('cargo');
+
+// Equipos
 const tipoEquipo = document.getElementById('tipo-equipo');
 const marcaEquipo = document.getElementById('marca-equipo');
-const modeloEquipo = document.getElementById('modelo-equipo');   // NUEVO
+const modeloEquipo = document.getElementById('modelo-equipo');
 const serieEquipo = document.getElementById('serie-equipo');
 const activoEquipo = document.getElementById('activo-equipo');
 const btnAgregarEquipo = document.getElementById('btn-agregar-equipo');
@@ -30,6 +34,9 @@ const formStatus = document.getElementById('form-status');
 const datalistPisos = document.getElementById('datalist-pisos');
 const datalistDepartamentos = document.getElementById('datalist-departamentos');
 const datalistAreas = document.getElementById('datalist-areas');
+// Datalists equipos
+const datalistMarcas = document.getElementById('datalist-marcas');
+const datalistModelos = document.getElementById('datalist-modelos');
 
 // Tabs
 const tabBtns = document.querySelectorAll('.tab-btn');
@@ -55,6 +62,9 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
   setupFilters();
   cargarRegistros();
+
+  // Evento para filtrar áreas según departamento
+  formDepartamento.addEventListener('input', filtrarAreasPorDepartamento);
 });
 
 function setupTabs() {
@@ -73,13 +83,11 @@ function switchTab(tab) {
   tabContents.forEach(c => c.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
 
-  // Mostrar/ocultar barra de filtros
   if (tab === 'dashboard' || tab === 'reportes') {
     filtersBar.style.display = 'block';
   } else {
     filtersBar.style.display = 'none';
   }
-
   actualizarVista();
 }
 
@@ -127,6 +135,7 @@ async function cargarRegistros() {
   try {
     registros = await fetchGetRegistros();
     actualizarDatalists();
+    filtrarAreasPorDepartamento(); // al cargar, ajustar áreas según departamento actual
     actualizarVista();
   } catch (error) {
     console.error(error);
@@ -134,19 +143,25 @@ async function cargarRegistros() {
   }
 }
 
+// ==================== CAPITALIZACIÓN / MAYÚSCULAS ====================
+function capitalizarPalabras(str) {
+  return str.replace(/\b\w/g, char => char.toUpperCase());
+}
+
 // ==================== CRUD ====================
 async function guardarEstacion() {
   if (!formEdificio.value) return mostrarStatus('error', 'Selecciona un edificio.');
   if (!formDepartamento.value.trim()) return mostrarStatus('error', 'El departamento es obligatorio.');
-  if (!formResponsable.value.trim()) return mostrarStatus('error', 'El responsable es obligatorio.');
+  if (!formAsignado.value.trim()) return mostrarStatus('error', 'El campo "A quién fue asignado" es obligatorio.');
   if (equiposTemporales.length === 0) return mostrarStatus('error', 'Agrega al menos un equipo.');
 
   const nuevaEstacion = {
     edificio: formEdificio.value,
     piso: formPiso.value.trim(),
-    departamento: formDepartamento.value.trim(),
-    area: formArea.value.trim(),
-    responsable: formResponsable.value.trim(),
+    departamento: capitalizarPalabras(formDepartamento.value.trim()),
+    area: capitalizarPalabras(formArea.value.trim()),
+    asignado: capitalizarPalabras(formAsignado.value.trim()),
+    cargo: capitalizarPalabras(formCargo.value.trim()),
     equipos: [...equiposTemporales]
   };
 
@@ -185,7 +200,6 @@ async function eliminarEstacion(id) {
   const registroEliminado = registros.find(r => r.id === id);
   registros = registros.filter(r => r.id !== id);
   actualizarVista();
-
   try {
     await fetchPost({ action: 'delete', id });
   } catch (error) {
@@ -202,10 +216,10 @@ function agregarEquipoTemporal() {
 
   const equipo = {
     tipo,
-    marca: marcaEquipo.value.trim(),
-    modelo: modeloEquipo.value.trim(),   // NUEVO campo
-    serie: serieEquipo.value.trim(),
-    activo: activoEquipo.value.trim()
+    marca: marcaEquipo.value.trim().toUpperCase(),
+    modelo: modeloEquipo.value.trim().toUpperCase(),
+    serie: serieEquipo.value.trim().toUpperCase(),
+    activo: activoEquipo.value.trim().toUpperCase()
   };
 
   equiposTemporales.push(equipo);
@@ -222,7 +236,7 @@ function eliminarEquipoTemporal(index) {
 function limpiarCamposEquipo() {
   tipoEquipo.value = '';
   marcaEquipo.value = '';
-  modeloEquipo.value = '';   // Limpiar Modelo
+  modeloEquipo.value = '';
   serieEquipo.value = '';
   activoEquipo.value = '';
 }
@@ -251,7 +265,8 @@ function limpiarFormulario() {
   formPiso.value = '';
   formDepartamento.value = '';
   formArea.value = '';
-  formResponsable.value = '';
+  formAsignado.value = '';
+  formCargo.value = '';
   equiposTemporales = [];
   renderEquiposTemporales();
   limpiarCamposEquipo();
@@ -279,12 +294,12 @@ function actualizarVista() {
 
 function aplicarFiltros(data) {
   return data.filter(r => {
-    return (
-      (!filters.piso || (r.piso || '').toLowerCase().includes(filters.piso)) &&
-      (!filters.departamento || (r.departamento || '').toLowerCase().includes(filters.departamento)) &&
-      (!filters.area || (r.area || '').toLowerCase().includes(filters.area)) &&
-      (!filters.responsable || (r.responsable || '').toLowerCase().includes(filters.responsable))
-    );
+    const matchPiso = !filters.piso || (r.piso || '').toLowerCase().includes(filters.piso);
+    const matchDepto = !filters.departamento || (r.departamento || '').toLowerCase().includes(filters.departamento);
+    const matchArea = !filters.area || (r.area || '').toLowerCase().includes(filters.area);
+    const respText = ((r.asignado || '') + ' ' + (r.cargo || '')).toLowerCase();
+    const matchResp = !filters.responsable || respText.includes(filters.responsable);
+    return matchPiso && matchDepto && matchArea && matchResp;
   });
 }
 
@@ -292,7 +307,7 @@ function actualizarFiltrosDatalist() {
   const pisos = [...new Set(registros.map(r => r.piso).filter(Boolean))].sort();
   const deptos = [...new Set(registros.map(r => r.departamento).filter(Boolean))].sort();
   const areas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
-  const resp = [...new Set(registros.map(r => r.responsable).filter(Boolean))].sort();
+  const resp = [...new Set(registros.map(r => `${r.asignado||''} ${r.cargo||''}`.trim()).filter(Boolean))].sort();
 
   document.getElementById('datalist-filter-pisos').innerHTML = pisos.map(v => `<option value="${escapeHtml(v)}">`).join('');
   document.getElementById('datalist-filter-deptos').innerHTML = deptos.map(v => `<option value="${escapeHtml(v)}">`).join('');
@@ -300,15 +315,55 @@ function actualizarFiltrosDatalist() {
   document.getElementById('datalist-filter-resp').innerHTML = resp.map(v => `<option value="${escapeHtml(v)}">`).join('');
 }
 
+// ==================== DATALISTS DINÁMICOS (con marcas/modelos) ====================
 function actualizarDatalists() {
+  // Pisos, departamentos, áreas globales
   const pisos = [...new Set(registros.map(r => r.piso).filter(Boolean))].sort();
   const deptos = [...new Set(registros.map(r => r.departamento).filter(Boolean))].sort();
-  const areas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
   datalistPisos.innerHTML = pisos.map(v => `<option value="${escapeHtml(v)}">`).join('');
   datalistDepartamentos.innerHTML = deptos.map(v => `<option value="${escapeHtml(v)}">`).join('');
-  datalistAreas.innerHTML = areas.map(v => `<option value="${escapeHtml(v)}">`).join('');
+  // Áreas se manejan con filtro dependiente, pero podemos llenar todas inicialmente
+  const todasAreas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
+  datalistAreas.innerHTML = todasAreas.map(v => `<option value="${escapeHtml(v)}">`).join('');
+
+  // Marcas y modelos extraídos de los equipos
+  const marcas = new Set();
+  const modelos = new Set();
+  registros.forEach(r => {
+    const equipos = parseEquipos(r.equipos);
+    equipos.forEach(eq => {
+      if (eq.marca) marcas.add(eq.marca);
+      if (eq.modelo) modelos.add(eq.modelo);
+    });
+  });
+  datalistMarcas.innerHTML = [...marcas].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
+  datalistModelos.innerHTML = [...modelos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
+
+  // Actualizar también filtros
+  actualizarFiltrosDatalist();
 }
 
+// ==================== FILTRO DEPENDIENTE: ÁREAS SEGÚN DEPARTAMENTO ====================
+function filtrarAreasPorDepartamento() {
+  const deptoActual = formDepartamento.value.trim();
+  if (!deptoActual) {
+    // Si no hay departamento, mostrar todas las áreas
+    const todasAreas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
+    datalistAreas.innerHTML = todasAreas.map(v => `<option value="${escapeHtml(v)}">`).join('');
+    return;
+  }
+  // Filtrar áreas que coincidan exactamente con el departamento (ignorando mayúsculas)
+  const deptoLower = deptoActual.toLowerCase();
+  const areasFiltradas = [...new Set(
+    registros
+      .filter(r => (r.departamento || '').toLowerCase() === deptoLower)
+      .map(r => r.area)
+      .filter(Boolean)
+  )].sort();
+  datalistAreas.innerHTML = areasFiltradas.map(v => `<option value="${escapeHtml(v)}">`).join('');
+}
+
+// ==================== RENDER STATS ====================
 function renderStats(data) {
   const totalEstaciones = data.length;
   const totalEquipos = data.reduce((sum, r) => sum + parseEquipos(r.equipos).length, 0);
@@ -318,7 +373,6 @@ function renderStats(data) {
       tipoCount[eq.tipo] = (tipoCount[eq.tipo] || 0) + 1;
     });
   });
-
   const topTipos = Object.entries(tipoCount).sort((a,b) => b[1]-a[1]).slice(0,4);
   statsContainer.innerHTML = `
     <div class="stat-card"><h3>Total Estaciones</h3><div class="stat-value">${totalEstaciones}</div></div>
@@ -329,24 +383,23 @@ function renderStats(data) {
   `;
 }
 
+// ==================== RENDER TABLE ====================
 function renderTable(container, data, expandible = true) {
   if (data.length === 0) {
     container.innerHTML = '<p style="text-align:center;padding:20px;">No se encontraron registros.</p>';
     return;
   }
-
   let html = `
     <table>
       <thead>
         <tr>
-          <th>Edificio</th><th>Piso</th><th>Depto</th><th>Área</th><th>Responsable</th>
-          <th style="width:50px;"></th>
-          <th style="width:50px;">Acción</th>
+          <th>Edificio</th><th>Piso</th><th>Depto</th><th>Área</th>
+          <th>Asignado</th><th>Cargo</th>
+          <th style="width:50px;"></th><th style="width:50px;">Acción</th>
         </tr>
       </thead>
       <tbody>
   `;
-
   data.forEach(r => {
     const equipos = parseEquipos(r.equipos);
     const rowId = r.id;
@@ -356,29 +409,22 @@ function renderTable(container, data, expandible = true) {
         <td>${escapeHtml(r.piso || '—')}</td>
         <td>${escapeHtml(r.departamento || '—')}</td>
         <td>${escapeHtml(r.area || '—')}</td>
-        <td>${escapeHtml(r.responsable || '—')}</td>
+        <td>${escapeHtml(r.asignado || '—')}</td>
+        <td>${escapeHtml(r.cargo || '—')}</td>
         <td style="text-align:center;"><span class="expand-icon" id="icon-${rowId}">▶</span></td>
         <td><button class="btn btn-delete" onclick="event.stopPropagation(); eliminarEstacion('${rowId}')">🗑️</button></td>
       </tr>
       <tr class="detail-row" id="detail-${rowId}" style="display:none;">
-        <td colspan="7">
+        <td colspan="8">
           <strong>Equipos Asignados:</strong>
           <table class="sub-table">
-            <thead>
-              <tr>
-                <th>Tipo</th>
-                <th>Marca</th>
-                <th>Modelo</th>   <!-- NUEVA COLUMNA -->
-                <th>Serie</th>
-                <th>Activo Fijo</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Activo Fijo</th></tr></thead>
             <tbody>
               ${equipos.map(eq => `
                 <tr>
                   <td>${escapeHtml(eq.tipo)}</td>
                   <td>${escapeHtml(eq.marca || '—')}</td>
-                  <td>${escapeHtml(eq.modelo || '—')}</td>   <!-- NUEVO CAMPO -->
+                  <td>${escapeHtml(eq.modelo || '—')}</td>
                   <td>${escapeHtml(eq.serie || '—')}</td>
                   <td>${escapeHtml(eq.activo || '—')}</td>
                 </tr>
@@ -389,7 +435,6 @@ function renderTable(container, data, expandible = true) {
       </tr>
     `;
   });
-
   html += '</tbody></table>';
   container.innerHTML = html;
 }
@@ -421,15 +466,14 @@ btnExportCSV.addEventListener('click', () => {
   const filtrados = aplicarFiltros(registros);
   if (filtrados.length === 0) return alert('No hay datos para exportar.');
 
-  // Incluir Modelo en el CSV
-  let csv = 'Edificio,Piso,Departamento,Área,Responsable,Tipo Equipo,Marca,Modelo,Serie,Activo Fijo,Fecha\n';
+  let csv = 'Edificio,Piso,Departamento,Área,Asignado,Cargo,Tipo Equipo,Marca,Modelo,Serie,Activo Fijo,Fecha\n';
   filtrados.forEach(r => {
     const equipos = parseEquipos(r.equipos);
     if (equipos.length === 0) {
-      csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.responsable}","","","","","","${r.fecha}"\n`;
+      csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.asignado||''}","${r.cargo||''}","","","","","","${r.fecha}"\n`;
     } else {
       equipos.forEach(eq => {
-        csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.responsable}","${eq.tipo}","${eq.marca || ''}","${eq.modelo || ''}","${eq.serie || ''}","${eq.activo || ''}","${r.fecha}"\n`;
+        csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.asignado||''}","${r.cargo||''}","${eq.tipo}","${eq.marca||''}","${eq.modelo||''}","${eq.serie||''}","${eq.activo||''}","${r.fecha}"\n`;
       });
     }
   });
