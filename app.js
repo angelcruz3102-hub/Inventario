@@ -56,6 +56,19 @@ const dashboardTableContainer = document.getElementById('table-container-dashboa
 const reportesTableContainer = document.getElementById('table-container-reportes');
 const btnExportCSV = document.getElementById('btn-export-csv');
 
+// ==================== UTILIDAD: DEBOUNCE (PARCHE 1) ====================
+// Evita reconstruir el datalist en cada tecla. En Android, reescribir
+// <datalist> mientras el picker nativo está abierto y el usuario sigue
+// tecleando es lo que provoca que se congele o no refresque las opciones.
+function debounce(fn, delay = 250) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), delay);
+  };
+}
+const filtrarAreaDebounced = debounce(() => filtrarAreasPorDepartamento(), 250);
+
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('year').textContent = new Date().getFullYear();
@@ -63,22 +76,16 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFilters();
   cargarRegistros();
 
-  // Eventos 'input' para actualización en tiempo real de datalists (Memoria Viva)
-  formDepartamento.addEventListener('input', () => {
-    actualizarDatalists();
-  });
-
-  formArea.addEventListener('input', () => {
-    actualizarDatalists();
-  });
-
-  marcaEquipo.addEventListener('input', () => {
-    actualizarDatalists();
-  });
-
-  modeloEquipo.addEventListener('input', () => {
-    actualizarDatalists();
-  });
+  // --- PARCHE 1: listeners de datalist reemplazados ---
+  // 'departamento' filtra 'área' en vivo pero con debounce (no en cada tecla).
+  formDepartamento.addEventListener('input', filtrarAreaDebounced);
+  // El resto solo se reconstruye al perder foco (blur), no en cada tecla.
+  // Así el valor recién tecleado queda memorizado sin tocar el DOM mientras
+  // el usuario todavía está escribiendo (causa raíz del freeze en Android).
+  formDepartamento.addEventListener('blur', () => actualizarDatalists());
+  formArea.addEventListener('blur', () => actualizarDatalists());
+  marcaEquipo.addEventListener('blur', () => actualizarDatalists());
+  modeloEquipo.addEventListener('blur', () => actualizarDatalists());
 });
 
 function setupTabs() {
@@ -189,7 +196,7 @@ async function guardarEstacion() {
   };
 
   registros.unshift(registroOptimista);
-  limpiarFormulario();
+  limpiarCamposPostGuardado(); // PARCHE 3: antes era limpiarFormulario() (borraba ubicación)
   actualizarVista();
   mostrarStatus('loading', 'Guardando...');
 
@@ -278,18 +285,29 @@ function renderEquiposTemporales() {
   `).join('');
 }
 
-function limpiarFormulario() {
-  formEdificio.value = '';
-  formPiso.value = '';
-  formDepartamento.value = '';
-  formArea.value = '';
+// ==================== PARCHE 3: PERSISTENCIA DE UBICACIÓN ====================
+// A) Se usa DESPUÉS de guardar una estación: mantiene Edificio/Piso/
+//    Departamento/Área intactos para cargar rápido varias máquinas
+//    en el mismo lugar. Solo limpia Usuario + Equipos.
+function limpiarCamposPostGuardado() {
   formAsignado.value = '';
-  formCargo.value = ''; // <--- AQUÍ ESTABA EL BUG QUE ROMPÍA LA MEMORIA
+  formCargo.value = '';
   equiposTemporales = [];
   renderEquiposTemporales();
   limpiarCamposEquipo();
   limpiarStatus();
-  actualizarDatalists(); 
+  actualizarDatalists();
+  formAsignado.focus(); // listo para el siguiente equipo/persona en el mismo sitio
+}
+
+// B) Reset TOTAL: es la única que borra también Ubicación.
+//    Atada al botón "🧹 Limpiar Formulario".
+function resetFormularioCompleto() {
+  formEdificio.value = '';
+  formPiso.value = '';
+  formDepartamento.value = '';
+  formArea.value = '';
+  limpiarCamposPostGuardado(); // reutiliza la limpieza de usuario/equipos
 }
 
 function mostrarStatus(tipo, msg) {
@@ -322,16 +340,26 @@ function aplicarFiltros(data) {
   });
 }
 
+// ==================== PARCHE 2: helper anti-parpadeo ====================
+// No reescribe el DOM si el HTML resultante es idéntico al ya renderizado.
+// Se apoya en dataset.cache como memoria del último valor pintado.
+function setDatalistOptions(datalistEl, valores) {
+  const html = valores.map(v => `<option value="${escapeHtml(v)}">`).join('');
+  if (datalistEl.dataset.cache === html) return; // sin cambios: no tocar el DOM
+  datalistEl.dataset.cache = html;
+  datalistEl.innerHTML = html;
+}
+
 function actualizarFiltrosDatalist() {
   const pisos = [...new Set(registros.map(r => r.piso).filter(Boolean))].sort();
   const deptos = [...new Set(registros.map(r => r.departamento).filter(Boolean))].sort();
   const areas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
   const resp = [...new Set(registros.map(r => `${r.asignado||''} ${r.cargo||''}`.trim()).filter(Boolean))].sort();
 
-  document.getElementById('datalist-filter-pisos').innerHTML = pisos.map(v => `<option value="${escapeHtml(v)}">`).join('');
-  document.getElementById('datalist-filter-deptos').innerHTML = deptos.map(v => `<option value="${escapeHtml(v)}">`).join('');
-  document.getElementById('datalist-filter-areas').innerHTML = areas.map(v => `<option value="${escapeHtml(v)}">`).join('');
-  document.getElementById('datalist-filter-resp').innerHTML = resp.map(v => `<option value="${escapeHtml(v)}">`).join('');
+  setDatalistOptions(document.getElementById('datalist-filter-pisos'), pisos);
+  setDatalistOptions(document.getElementById('datalist-filter-deptos'), deptos);
+  setDatalistOptions(document.getElementById('datalist-filter-areas'), areas);
+  setDatalistOptions(document.getElementById('datalist-filter-resp'), resp);
 }
 
 // ==================== DATALISTS DINÁMICOS (Memoria Viva) ====================
@@ -354,8 +382,8 @@ function actualizarDatalists() {
   if (deptoActual) todosDeptos.add(deptoActual);
   if (areaActual) todasAreas.add(areaActual);
 
-  datalistPisos.innerHTML = [...todosPisos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
-  datalistDepartamentos.innerHTML = [...todosDeptos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
+  setDatalistOptions(datalistPisos, [...todosPisos].sort());
+  setDatalistOptions(datalistDepartamentos, [...todosDeptos].sort());
 
   const todasMarcas = new Set();
   const todosModelos = new Set();
@@ -377,8 +405,8 @@ function actualizarDatalists() {
   if (marcaInput) todasMarcas.add(marcaInput);
   if (modeloInput) todosModelos.add(modeloInput);
 
-  datalistMarcas.innerHTML = [...todasMarcas].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
-  datalistModelos.innerHTML = [...todosModelos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
+  setDatalistOptions(datalistMarcas, [...todasMarcas].sort());
+  setDatalistOptions(datalistModelos, [...todosModelos].sort());
 
   filtrarAreasPorDepartamento([...todasAreas].sort());
   actualizarFiltrosDatalist();
@@ -387,7 +415,7 @@ function actualizarDatalists() {
 // ==================== FILTRO DEPENDIENTE: ÁREAS SEGÚN DEPARTAMENTO ====================
 function filtrarAreasPorDepartamento(areasDisponibles = null) {
   const deptoActual = formDepartamento.value.trim().toLowerCase();
-  
+
   if (!areasDisponibles) {
     const todasAreas = new Set();
     registros.forEach(r => { if (r.area) todasAreas.add(r.area); });
@@ -397,7 +425,7 @@ function filtrarAreasPorDepartamento(areasDisponibles = null) {
   }
 
   if (!deptoActual) {
-    datalistAreas.innerHTML = areasDisponibles.map(v => `<option value="${escapeHtml(v)}">`).join('');
+    setDatalistOptions(datalistAreas, areasDisponibles);
     return;
   }
 
@@ -416,7 +444,7 @@ function filtrarAreasPorDepartamento(areasDisponibles = null) {
   }
 
   const resultado = [...areasFiltradas].sort();
-  datalistAreas.innerHTML = resultado.map(v => `<option value="${escapeHtml(v)}">`).join('');
+  setDatalistOptions(datalistAreas, resultado);
 }
 
 // ==================== RENDER STATS ====================
@@ -554,5 +582,5 @@ function escapeHtml(str) {
 // ==================== EVENT LISTENERS ====================
 btnAgregarEquipo.addEventListener('click', agregarEquipoTemporal);
 btnGuardar.addEventListener('click', guardarEstacion);
-btnLimpiarForm.addEventListener('click', limpiarFormulario);
+btnLimpiarForm.addEventListener('click', resetFormularioCompleto); // PARCHE 4: antes llamaba a limpiarFormulario
 activoEquipo.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); agregarEquipoTemporal(); } });
