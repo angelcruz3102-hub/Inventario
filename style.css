@@ -146,10 +146,25 @@ select {
   appearance: none;
 }
 
-/* === EQUIPOS INLINE FORM === */
-.equipos-form-inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-.equipos-form-inline select, .equipos-form-inline input { flex: 1; min-width: 110px; padding: 12px 14px; font-size: 0.9rem; }
-.equipos-form-inline select { flex: 1.2; }
+/* === EQUIPOS INLINE FORM (ajustado para 5 elementos + botón) === */
+.equipos-form-inline {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.equipos-form-inline select,
+.equipos-form-inline input {
+  flex: 1 1 0%;
+  min-width: 90px;        /* Reducido para que quepan más campos */
+  padding: 12px 14px;
+  font-size: 0.9rem;
+}
+.equipos-form-inline select { flex: 1.2 1 0%; }
+.equipos-form-inline .btn-add {
+  flex-shrink: 0;
+}
 
 /* === BUTTONS === */
 .btn {
