@@ -63,8 +63,23 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFilters();
   cargarRegistros();
 
-  // Evento para filtrar áreas según departamento
-  formDepartamento.addEventListener('input', filtrarAreasPorDepartamento);
+  // Eventos 'input' para actualización en tiempo real de datalists (Memoria Viva)
+  formDepartamento.addEventListener('input', () => {
+    actualizarDatalists();
+  });
+
+  formArea.addEventListener('input', () => {
+    // Solo actualizar para que su propio valor se incluya en las opciones
+    actualizarDatalists();
+  });
+
+  marcaEquipo.addEventListener('input', () => {
+    actualizarDatalists();
+  });
+
+  modeloEquipo.addEventListener('input', () => {
+    actualizarDatalists();
+  });
 });
 
 function setupTabs() {
@@ -226,11 +241,15 @@ function agregarEquipoTemporal() {
   renderEquiposTemporales();
   limpiarCamposEquipo();
   tipoEquipo.focus();
+
+  actualizarDatalists(); // (Memoria Viva)
 }
 
 function eliminarEquipoTemporal(index) {
   equiposTemporales.splice(index, 1);
   renderEquiposTemporales();
+
+  actualizarDatalists(); // (Memoria Viva)
 }
 
 function limpiarCamposEquipo() {
@@ -266,11 +285,12 @@ function limpiarFormulario() {
   formDepartamento.value = '';
   formArea.value = '';
   formAsignado.value = '';
-  formCargo.value = '';
+  formCargo = '';
   equiposTemporales = [];
   renderEquiposTemporales();
   limpiarCamposEquipo();
   limpiarStatus();
+  actualizarDatalists(); // (Memoria Viva)
 }
 
 function mostrarStatus(tipo, msg) {
@@ -315,52 +335,107 @@ function actualizarFiltrosDatalist() {
   document.getElementById('datalist-filter-resp').innerHTML = resp.map(v => `<option value="${escapeHtml(v)}">`).join('');
 }
 
-// ==================== DATALISTS DINÁMICOS (con marcas/modelos) ====================
+// ==================== DATALISTS DINÁMICOS (Memoria Viva) ====================
 function actualizarDatalists() {
-  // Pisos, departamentos, áreas globales
-  const pisos = [...new Set(registros.map(r => r.piso).filter(Boolean))].sort();
-  const deptos = [...new Set(registros.map(r => r.departamento).filter(Boolean))].sort();
-  datalistPisos.innerHTML = pisos.map(v => `<option value="${escapeHtml(v)}">`).join('');
-  datalistDepartamentos.innerHTML = deptos.map(v => `<option value="${escapeHtml(v)}">`).join('');
-  // Áreas se manejan con filtro dependiente, pero podemos llenar todas inicialmente
-  const todasAreas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
-  datalistAreas.innerHTML = todasAreas.map(v => `<option value="${escapeHtml(v)}">`).join('');
+  // --- Fusionar datos de Pisos, Departamentos, Áreas ---
+  const todosPisos = new Set();
+  const todosDeptos = new Set();
+  const todasAreas = new Set();
 
-  // Marcas y modelos extraídos de los equipos
-  const marcas = new Set();
-  const modelos = new Set();
   registros.forEach(r => {
-    const equipos = parseEquipos(r.equipos);
-    equipos.forEach(eq => {
-      if (eq.marca) marcas.add(eq.marca);
-      if (eq.modelo) modelos.add(eq.modelo);
+    if (r.piso) todosPisos.add(r.piso);
+    if (r.departamento) todosDeptos.add(r.departamento);
+    if (r.area) todasAreas.add(r.area);
+  });
+
+  // Agregar valores actuales del formulario (inputs) (Memoria Viva)
+  const pisoActual = formPiso.value.trim();
+  const deptoActual = formDepartamento.value.trim();
+  const areaActual = formArea.value.trim();
+
+  if (pisoActual) todosPisos.add(pisoActual);
+  if (deptoActual) todosDeptos.add(deptoActual);
+  if (areaActual) todasAreas.add(areaActual);
+
+  // Llenar datalists de ubicación
+  datalistPisos.innerHTML = [...todosPisos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
+  datalistDepartamentos.innerHTML = [...todosDeptos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
+
+  // --- Fusionar Marcas y Modelos (de registros, equipos temporales y inputs) (Memoria Viva) ---
+  const todasMarcas = new Set();
+  const todosModelos = new Set();
+
+  // De registros
+  registros.forEach(r => {
+    parseEquipos(r.equipos).forEach(eq => {
+      if (eq.marca) todasMarcas.add(eq.marca);
+      if (eq.modelo) todosModelos.add(eq.modelo);
     });
   });
-  datalistMarcas.innerHTML = [...marcas].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
-  datalistModelos.innerHTML = [...modelos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
 
-  // Actualizar también filtros
+  // De equipos temporales
+  equiposTemporales.forEach(eq => {
+    if (eq.marca) todasMarcas.add(eq.marca);
+    if (eq.modelo) todosModelos.add(eq.modelo);
+  });
+
+  // De los inputs actuales de equipo
+  const marcaInput = marcaEquipo.value.trim();
+  const modeloInput = modeloEquipo.value.trim();
+  if (marcaInput) todasMarcas.add(marcaInput);
+  if (modeloInput) todosModelos.add(modeloInput);
+
+  datalistMarcas.innerHTML = [...todasMarcas].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
+  datalistModelos.innerHTML = [...todosModelos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
+
+  // --- Áreas con filtro dependiente ---
+  // Ahora llamamos al filtro para que use el conjunto de todasAreas (combinado)
+  filtrarAreasPorDepartamento([...todasAreas].sort());
+
+  // Actualizar también los datalists de los filtros (Dashboard)
   actualizarFiltrosDatalist();
 }
 
-// ==================== FILTRO DEPENDIENTE: ÁREAS SEGÚN DEPARTAMENTO ====================
-function filtrarAreasPorDepartamento() {
-  const deptoActual = formDepartamento.value.trim();
+// ==================== FILTRO DEPENDIENTE: ÁREAS SEGÚN DEPARTAMENTO (Memoria Viva) ====================
+function filtrarAreasPorDepartamento(areasDisponibles = null) {
+  const deptoActual = formDepartamento.value.trim().toLowerCase();
+  
+  // Si no se pasan áreas, las obtenemos del conjunto actual (combinado)
+  if (!areasDisponibles) {
+    const todasAreas = new Set();
+    registros.forEach(r => { if (r.area) todasAreas.add(r.area); });
+    const areaInput = formArea.value.trim();
+    if (areaInput) todasAreas.add(areaInput);
+    areasDisponibles = [...todasAreas].sort();
+  }
+
   if (!deptoActual) {
-    // Si no hay departamento, mostrar todas las áreas
-    const todasAreas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
-    datalistAreas.innerHTML = todasAreas.map(v => `<option value="${escapeHtml(v)}">`).join('');
+    // Si no hay departamento, mostrar todas las áreas disponibles
+    datalistAreas.innerHTML = areasDisponibles.map(v => `<option value="${escapeHtml(v)}">`).join('');
     return;
   }
-  // Filtrar áreas que coincidan exactamente con el departamento (ignorando mayúsculas)
-  const deptoLower = deptoActual.toLowerCase();
-  const areasFiltradas = [...new Set(
-    registros
-      .filter(r => (r.departamento || '').toLowerCase() === deptoLower)
-      .map(r => r.area)
-      .filter(Boolean)
-  )].sort();
-  datalistAreas.innerHTML = areasFiltradas.map(v => `<option value="${escapeHtml(v)}">`).join('');
+
+  // Filtrar áreas que coincidan con el departamento actual
+  const deptoLower = deptoActual;
+  const areasFiltradas = new Set();
+
+  registros.forEach(r => {
+    if ((r.departamento || '').toLowerCase() === deptoLower && r.area) {
+      areasFiltradas.add(r.area);
+    }
+  });
+
+  // También incluir el valor actual del input de área si pertenece a este depto (o si no hay registros)
+  const areaInput = formArea.value.trim();
+  if (areaInput) {
+    // Para el input, asumimos que si el usuario lo escribe, "pertenece" para el autocompletado
+    // (o podrías validar contra la BD si prefieres, pero esto es más flexible para la "memoria viva")
+    areasFiltradas.add(areaInput);
+  }
+
+  // Convertir a array y ordenar
+  const resultado = [...areasFiltradas].sort();
+  datalistAreas.innerHTML = resultado.map(v => `<option value="${escapeHtml(v)}">`).join('');
 }
 
 // ==================== RENDER STATS ====================
