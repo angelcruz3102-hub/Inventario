@@ -8,18 +8,28 @@
 </head>
 <body>
   <header class="header-container">
-    <a href="#" class="brand-logo" style="background-color: white; padding: 8px 16px; border-radius: 8px; display: inline-flex; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.15); max-width: 100%; box-sizing: border-box;">
-      <svg viewBox="0 0 420 90" style="height: 45px; width: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg">
-        <g fill="#21409a">
-          <path d="M 45 5 A 40 40 0 1 0 45 85 A 40 40 0 1 0 45 5 Z M 45 18 A 27 27 0 1 1 45 72 A 27 27 0 1 1 45 18 Z" />
-          <path d="M 5 35 Q 25 25 45 35 T 85 35" fill="none" stroke="#21409a" stroke-width="4.5" />
-          <path d="M 5 48 Q 25 38 45 48 T 85 48" fill="none" stroke="#21409a" stroke-width="4.5" />
-          <path d="M 5 61 Q 25 51 45 61 T 85 61" fill="none" stroke="#21409a" stroke-width="4.5" />
-          <text x="100" y="42" font-family="Arial, sans-serif" font-weight="900" font-size="44" letter-spacing="1">INDRHI</text>
-          <text x="100" y="65" font-family="Arial, sans-serif" font-weight="bold" font-size="16">INSTITUTO NACIONAL DE</text>
-          <text x="100" y="85" font-family="Arial, sans-serif" font-weight="bold" font-size="16">RECURSOS HIDRÁULICOS</text>
+    <a href="#" class="brand-logo" style="background-color: white; padding: 10px 18px; border-radius: 8px; display: inline-flex; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.15); max-width: 100%; box-sizing: border-box;">
+      <svg viewBox="0 0 460 115" style="height: 48px; width: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg">
+        <g fill="#1a3687">
+          <circle cx="50" cy="50" r="25" fill="none" stroke="#1a3687" stroke-width="14" />
+          <rect x="18" y="10" width="14" height="72" />
+          <rect x="18" y="82" width="32" height="14" />
+          <rect x="68" y="18" width="14" height="72" />
+          <rect x="50" y="4" width="32" height="14" />
         </g>
-        <rect x="15" y="88" width="60" height="5" fill="#ed1c24" />
+        
+        <g fill="none" stroke="#1a3687" stroke-width="4">
+          <path d="M 8 36 Q 18 28, 28 36 T 48 36 T 68 36 T 88 36" />
+          <path d="M 8 46 Q 18 38, 28 46 T 48 46 T 68 46 T 88 46" />
+          <path d="M 8 56 Q 18 48, 28 56 T 48 56 T 68 56 T 88 56" />
+          <path d="M 8 66 Q 18 58, 28 66 T 48 66 T 68 66 T 88 66" />
+        </g>
+
+        <rect x="18" y="104" width="64" height="6" fill="#e61c24" />
+
+        <text x="110" y="52" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="52" fill="#1a3687" letter-spacing="1">INDRHI</text>
+        <text x="112" y="78" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="18" fill="#1a3687" letter-spacing="0.5">INSTITUTO NACIONAL DE</text>
+        <text x="112" y="100" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="18" fill="#1a3687" letter-spacing="0.5">RECURSOS HIDRÁULICOS</text>
       </svg>
     </a>
     <p class="subtitle">Inventario Tecnológico de Estaciones de Trabajo</p>
@@ -31,7 +41,6 @@
     <button class="tab-btn" data-tab="reportes">📄 Reportes</button>
   </nav>
 
-  <!-- Barra de filtros común (visible en Dashboard y Reportes) -->
   <div id="filters-bar" class="card" style="display:none;">
     <div class="filter-row">
       <input type="text" id="filter-piso" placeholder="Piso" list="datalist-filter-pisos">
@@ -47,7 +56,6 @@
   </div>
 
   <main>
-    <!-- Pestaña Registro -->
     <section id="tab-registro" class="tab-content active">
       <div class="card form-section">
         <h2>📌 Nueva Estación de Trabajo</h2>
@@ -123,13 +131,11 @@
       </div>
     </section>
 
-    <!-- Pestaña Dashboard -->
     <section id="tab-dashboard" class="tab-content">
       <div id="stats-container" class="stats-grid"></div>
       <div id="table-container-dashboard" class="table-wrapper"></div>
     </section>
 
-    <!-- Pestaña Reportes -->
     <section id="tab-reportes" class="tab-content">
       <div class="report-actions">
         <button id="btn-export-csv" class="btn btn-primary">📥 Exportar a CSV</button>
