@@ -17,6 +17,7 @@ const formArea = document.getElementById('area');
 const formResponsable = document.getElementById('responsable');
 const tipoEquipo = document.getElementById('tipo-equipo');
 const marcaEquipo = document.getElementById('marca-equipo');
+const modeloEquipo = document.getElementById('modelo-equipo');   // NUEVO
 const serieEquipo = document.getElementById('serie-equipo');
 const activoEquipo = document.getElementById('activo-equipo');
 const btnAgregarEquipo = document.getElementById('btn-agregar-equipo');
@@ -198,12 +199,16 @@ async function eliminarEstacion(id) {
 function agregarEquipoTemporal() {
   const tipo = tipoEquipo.value;
   if (!tipo) return alert('Selecciona el tipo de equipo.');
-  equiposTemporales.push({
+
+  const equipo = {
     tipo,
     marca: marcaEquipo.value.trim(),
+    modelo: modeloEquipo.value.trim(),   // NUEVO campo
     serie: serieEquipo.value.trim(),
     activo: activoEquipo.value.trim()
-  });
+  };
+
+  equiposTemporales.push(equipo);
   renderEquiposTemporales();
   limpiarCamposEquipo();
   tipoEquipo.focus();
@@ -217,6 +222,7 @@ function eliminarEquipoTemporal(index) {
 function limpiarCamposEquipo() {
   tipoEquipo.value = '';
   marcaEquipo.value = '';
+  modeloEquipo.value = '';   // Limpiar Modelo
   serieEquipo.value = '';
   activoEquipo.value = '';
 }
@@ -230,7 +236,8 @@ function renderEquiposTemporales() {
     <span class="equipo-tag">
       <span class="equipo-info">
         <strong>${escapeHtml(eq.tipo)}</strong>
-        ${eq.marca ? ` | ${escapeHtml(eq.marca)}` : ''}
+        ${eq.marca ? ` | Marca: ${escapeHtml(eq.marca)}` : ''}
+        ${eq.modelo ? ` | Mod: ${escapeHtml(eq.modelo)}` : ''}
         ${eq.serie ? ` | S/N: ${escapeHtml(eq.serie)}` : ''}
         ${eq.activo ? ` | Act: ${escapeHtml(eq.activo)}` : ''}
       </span>
@@ -357,12 +364,21 @@ function renderTable(container, data, expandible = true) {
         <td colspan="7">
           <strong>Equipos Asignados:</strong>
           <table class="sub-table">
-            <thead><tr><th>Tipo</th><th>Marca</th><th>Serie</th><th>Activo Fijo</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Marca</th>
+                <th>Modelo</th>   <!-- NUEVA COLUMNA -->
+                <th>Serie</th>
+                <th>Activo Fijo</th>
+              </tr>
+            </thead>
             <tbody>
               ${equipos.map(eq => `
                 <tr>
                   <td>${escapeHtml(eq.tipo)}</td>
                   <td>${escapeHtml(eq.marca || '—')}</td>
+                  <td>${escapeHtml(eq.modelo || '—')}</td>   <!-- NUEVO CAMPO -->
                   <td>${escapeHtml(eq.serie || '—')}</td>
                   <td>${escapeHtml(eq.activo || '—')}</td>
                 </tr>
@@ -405,14 +421,15 @@ btnExportCSV.addEventListener('click', () => {
   const filtrados = aplicarFiltros(registros);
   if (filtrados.length === 0) return alert('No hay datos para exportar.');
 
-  let csv = 'Edificio,Piso,Departamento,Área,Responsable,Tipo Equipo,Marca,Serie,Activo Fijo,Fecha\n';
+  // Incluir Modelo en el CSV
+  let csv = 'Edificio,Piso,Departamento,Área,Responsable,Tipo Equipo,Marca,Modelo,Serie,Activo Fijo,Fecha\n';
   filtrados.forEach(r => {
     const equipos = parseEquipos(r.equipos);
     if (equipos.length === 0) {
-      csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.responsable}","","","","","${r.fecha}"\n`;
+      csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.responsable}","","","","","","${r.fecha}"\n`;
     } else {
       equipos.forEach(eq => {
-        csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.responsable}","${eq.tipo}","${eq.marca || ''}","${eq.serie || ''}","${eq.activo || ''}","${r.fecha}"\n`;
+        csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.responsable}","${eq.tipo}","${eq.marca || ''}","${eq.modelo || ''}","${eq.serie || ''}","${eq.activo || ''}","${r.fecha}"\n`;
       });
     }
   });
