@@ -42,24 +42,25 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 15px 20px;
-    background-color: #0f172a; /* Azul muy oscuro */
+    background-color: #0f172a;
     border-bottom: 1px solid #1e293b;
 }
 
-.brand-logo {
-    background-color: #ffffff;
-    padding: 5px 12px;
-    border-radius: 6px;
+.logo-area {
     display: flex;
     align-items: center;
-    text-decoration: none;
+    gap: 10px;
 }
 
-.img-logo {
-    height: 40px;
-    width: auto;
-    object-fit: contain;
-    display: block;
+.logo-icon {
+    font-size: 28px;
+}
+
+.logo-area h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #ffffff;
+    letter-spacing: 1px;
 }
 
 .subtitle {
