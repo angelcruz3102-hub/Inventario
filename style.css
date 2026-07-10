@@ -47,6 +47,22 @@ header {
 header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.5px; }
 .subtitle { font-size: 0.9rem; opacity: 0.9; margin-left: auto; }
 
+/* === NUEVOS ESTILOS PARA EL LOGO === */
+.brand-logo {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.img-logo {
+    max-height: 45px; 
+    width: auto;
+    object-fit: contain;
+    background-color: white;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
 /* === TAB NAV === */
 #tab-nav {
   display: flex;
