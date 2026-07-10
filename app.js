@@ -1,5 +1,5 @@
 // ==================== CONFIGURACIÓN ====================
-const API_URL = "https://script.google.com/macros/s/AKfycbyROlORA0kKffdOW1w-uUHIRntakE7qR1RwxF5iq85x-wfB5xTMbgXF2WiaVGWsRsJr/exec"; // Reemplaza con tu URL de Google Apps Script
+const API_URL = "https://script.google.com/macros/s/AKfycbyROlORA0kKffdOW1w-uUHIRntakE7qR1RwxF5iq85x-wfB5xTMbgXF2WiaVGWsRsJr/exec"; // <-- REEMPLAZA ESTO CON TU URL REAL DE GOOGLE APPS SCRIPT
 
 // ==================== ESTADO GLOBAL ====================
 let registros = [];
@@ -69,7 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   formArea.addEventListener('input', () => {
-    // Solo actualizar para que su propio valor se incluya en las opciones
     actualizarDatalists();
   });
 
@@ -150,11 +149,11 @@ async function cargarRegistros() {
   try {
     registros = await fetchGetRegistros();
     actualizarDatalists();
-    filtrarAreasPorDepartamento(); // al cargar, ajustar áreas según departamento actual
+    filtrarAreasPorDepartamento();
     actualizarVista();
   } catch (error) {
     console.error(error);
-    alert('Error de conexión. Verifica tu red.');
+    alert('Error de conexión. Verifica tu red o que la URL sea correcta.');
   }
 }
 
@@ -242,14 +241,14 @@ function agregarEquipoTemporal() {
   limpiarCamposEquipo();
   tipoEquipo.focus();
 
-  actualizarDatalists(); // (Memoria Viva)
+  actualizarDatalists(); // Obliga a memorizar lo nuevo
 }
 
 function eliminarEquipoTemporal(index) {
   equiposTemporales.splice(index, 1);
   renderEquiposTemporales();
 
-  actualizarDatalists(); // (Memoria Viva)
+  actualizarDatalists();
 }
 
 function limpiarCamposEquipo() {
@@ -285,12 +284,12 @@ function limpiarFormulario() {
   formDepartamento.value = '';
   formArea.value = '';
   formAsignado.value = '';
-  formCargo = '';
+  formCargo.value = ''; // <--- AQUÍ ESTABA EL BUG QUE ROMPÍA LA MEMORIA
   equiposTemporales = [];
   renderEquiposTemporales();
   limpiarCamposEquipo();
   limpiarStatus();
-  actualizarDatalists(); // (Memoria Viva)
+  actualizarDatalists(); 
 }
 
 function mostrarStatus(tipo, msg) {
@@ -337,7 +336,6 @@ function actualizarFiltrosDatalist() {
 
 // ==================== DATALISTS DINÁMICOS (Memoria Viva) ====================
 function actualizarDatalists() {
-  // --- Fusionar datos de Pisos, Departamentos, Áreas ---
   const todosPisos = new Set();
   const todosDeptos = new Set();
   const todasAreas = new Set();
@@ -348,7 +346,6 @@ function actualizarDatalists() {
     if (r.area) todasAreas.add(r.area);
   });
 
-  // Agregar valores actuales del formulario (inputs) (Memoria Viva)
   const pisoActual = formPiso.value.trim();
   const deptoActual = formDepartamento.value.trim();
   const areaActual = formArea.value.trim();
@@ -357,15 +354,12 @@ function actualizarDatalists() {
   if (deptoActual) todosDeptos.add(deptoActual);
   if (areaActual) todasAreas.add(areaActual);
 
-  // Llenar datalists de ubicación
   datalistPisos.innerHTML = [...todosPisos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
   datalistDepartamentos.innerHTML = [...todosDeptos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
 
-  // --- Fusionar Marcas y Modelos (de registros, equipos temporales y inputs) (Memoria Viva) ---
   const todasMarcas = new Set();
   const todosModelos = new Set();
 
-  // De registros
   registros.forEach(r => {
     parseEquipos(r.equipos).forEach(eq => {
       if (eq.marca) todasMarcas.add(eq.marca);
@@ -373,34 +367,27 @@ function actualizarDatalists() {
     });
   });
 
-  // De equipos temporales
   equiposTemporales.forEach(eq => {
     if (eq.marca) todasMarcas.add(eq.marca);
     if (eq.modelo) todosModelos.add(eq.modelo);
   });
 
-  // De los inputs actuales de equipo
-  const marcaInput = marcaEquipo.value.trim();
-  const modeloInput = modeloEquipo.value.trim();
+  const marcaInput = marcaEquipo.value.trim().toUpperCase();
+  const modeloInput = modeloEquipo.value.trim().toUpperCase();
   if (marcaInput) todasMarcas.add(marcaInput);
   if (modeloInput) todosModelos.add(modeloInput);
 
   datalistMarcas.innerHTML = [...todasMarcas].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
   datalistModelos.innerHTML = [...todosModelos].sort().map(v => `<option value="${escapeHtml(v)}">`).join('');
 
-  // --- Áreas con filtro dependiente ---
-  // Ahora llamamos al filtro para que use el conjunto de todasAreas (combinado)
   filtrarAreasPorDepartamento([...todasAreas].sort());
-
-  // Actualizar también los datalists de los filtros (Dashboard)
   actualizarFiltrosDatalist();
 }
 
-// ==================== FILTRO DEPENDIENTE: ÁREAS SEGÚN DEPARTAMENTO (Memoria Viva) ====================
+// ==================== FILTRO DEPENDIENTE: ÁREAS SEGÚN DEPARTAMENTO ====================
 function filtrarAreasPorDepartamento(areasDisponibles = null) {
   const deptoActual = formDepartamento.value.trim().toLowerCase();
   
-  // Si no se pasan áreas, las obtenemos del conjunto actual (combinado)
   if (!areasDisponibles) {
     const todasAreas = new Set();
     registros.forEach(r => { if (r.area) todasAreas.add(r.area); });
@@ -410,12 +397,10 @@ function filtrarAreasPorDepartamento(areasDisponibles = null) {
   }
 
   if (!deptoActual) {
-    // Si no hay departamento, mostrar todas las áreas disponibles
     datalistAreas.innerHTML = areasDisponibles.map(v => `<option value="${escapeHtml(v)}">`).join('');
     return;
   }
 
-  // Filtrar áreas que coincidan con el departamento actual
   const deptoLower = deptoActual;
   const areasFiltradas = new Set();
 
@@ -425,15 +410,11 @@ function filtrarAreasPorDepartamento(areasDisponibles = null) {
     }
   });
 
-  // También incluir el valor actual del input de área si pertenece a este depto (o si no hay registros)
   const areaInput = formArea.value.trim();
   if (areaInput) {
-    // Para el input, asumimos que si el usuario lo escribe, "pertenece" para el autocompletado
-    // (o podrías validar contra la BD si prefieres, pero esto es más flexible para la "memoria viva")
     areasFiltradas.add(areaInput);
   }
 
-  // Convertir a array y ordenar
   const resultado = [...areasFiltradas].sort();
   datalistAreas.innerHTML = resultado.map(v => `<option value="${escapeHtml(v)}">`).join('');
 }
