@@ -1,27 +1,34 @@
 // ==================== CONFIGURACIÓN ====================
-const API_URL = "https://script.google.com/macros/s/AKfycbyROlORA0kKffdOW1w-uUHIRntakE7qR1RwxF5iq85x-wfB5xTMbgXF2WiaVGWsRsJr/exec"; // <-- REEMPLAZA ESTO CON TU URL REAL DE GOOGLE APPS SCRIPT
+const API_URL = "https://script.google.com/macros/s/AKfycbyROlORA0kKffdOW1w-uUHIRntakE7qR1RwxF5iq85x-wfB5xTMbgXF2WiaVGWsRsJr/exec";
 
 // ==================== ESTADO GLOBAL ====================
 let registros = [];
 let equiposTemporales = [];
 let currentTab = 'registro';
-let expandedRowId = null;
 let filters = { piso: '', departamento: '', area: '', responsable: '' };
+
+// ==================== CATÁLOGOS (localStorage) ====================
+const STORAGE_KEY = 'catalogosINDRHI';
+let catalogos = {
+  departamentos: [],
+  areas: [],          // { nombre: '', departamento: '' }
+  marcas: [],
+  modelos: []
+};
 
 // ==================== ELEMENTOS DOM ====================
 // Registro – ubicación
 const formEdificio = document.getElementById('edificio');
 const formPiso = document.getElementById('piso');
-const formDepartamento = document.getElementById('departamento');
-const formArea = document.getElementById('area');
-// Nuevos campos de usuario
+const selectDepartamento = document.getElementById('departamento');
+const selectArea = document.getElementById('area');
 const formAsignado = document.getElementById('asignado');
 const formCargo = document.getElementById('cargo');
 
 // Equipos
 const tipoEquipo = document.getElementById('tipo-equipo');
-const marcaEquipo = document.getElementById('marca-equipo');
-const modeloEquipo = document.getElementById('modelo-equipo');
+const selectMarcaEquipo = document.getElementById('marca-equipo');
+const selectModeloEquipo = document.getElementById('modelo-equipo');
 const serieEquipo = document.getElementById('serie-equipo');
 const activoEquipo = document.getElementById('activo-equipo');
 const btnAgregarEquipo = document.getElementById('btn-agregar-equipo');
@@ -29,14 +36,6 @@ const equiposTempList = document.getElementById('equipos-temp-list');
 const btnGuardar = document.getElementById('btn-guardar');
 const btnLimpiarForm = document.getElementById('btn-limpiar-form');
 const formStatus = document.getElementById('form-status');
-
-// Datalists registro
-const datalistPisos = document.getElementById('datalist-pisos');
-const datalistDepartamentos = document.getElementById('datalist-departamentos');
-const datalistAreas = document.getElementById('datalist-areas');
-// Datalists equipos
-const datalistMarcas = document.getElementById('datalist-marcas');
-const datalistModelos = document.getElementById('datalist-modelos');
 
 // Tabs
 const tabBtns = document.querySelectorAll('.tab-btn');
@@ -56,38 +55,195 @@ const dashboardTableContainer = document.getElementById('table-container-dashboa
 const reportesTableContainer = document.getElementById('table-container-reportes');
 const btnExportCSV = document.getElementById('btn-export-csv');
 
-// ==================== UTILIDAD: DEBOUNCE (PARCHE 1) ====================
-// Evita reconstruir el datalist en cada tecla. En Android, reescribir
-// <datalist> mientras el picker nativo está abierto y el usuario sigue
-// tecleando es lo que provoca que se congele o no refresque las opciones.
-function debounce(fn, delay = 250) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), delay);
-  };
-}
-const filtrarAreaDebounced = debounce(() => filtrarAreasPorDepartamento(), 250);
+// Configuración
+const depInput = document.getElementById('dep-catalogo-input');
+const btnDepAdd = document.getElementById('btn-dep-add');
+const depList = document.getElementById('dep-catalogo-list');
+const areaDeptoSelect = document.getElementById('area-depto-select');
+const areaInput = document.getElementById('area-catalogo-input');
+const btnAreaAdd = document.getElementById('btn-area-add');
+const areaList = document.getElementById('area-catalogo-list');
+const marcaInput = document.getElementById('marca-catalogo-input');
+const btnMarcaAdd = document.getElementById('btn-marca-add');
+const marcaList = document.getElementById('marca-catalogo-list');
+const modeloInput = document.getElementById('modelo-catalogo-input');
+const btnModeloAdd = document.getElementById('btn-modelo-add');
+const modeloList = document.getElementById('modelo-catalogo-list');
 
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('year').textContent = new Date().getFullYear();
+  cargarCatalogosDesdeStorage();
+  poblarSelectsCatalogo();
   setupTabs();
   setupFilters();
   cargarRegistros();
 
-  // --- PARCHE 1: listeners de datalist reemplazados ---
-  // 'departamento' filtra 'área' en vivo pero con debounce (no en cada tecla).
-  formDepartamento.addEventListener('input', filtrarAreaDebounced);
-  // El resto solo se reconstruye al perder foco (blur), no en cada tecla.
-  // Así el valor recién tecleado queda memorizado sin tocar el DOM mientras
-  // el usuario todavía está escribiendo (causa raíz del freeze en Android).
-  formDepartamento.addEventListener('blur', () => actualizarDatalists());
-  formArea.addEventListener('blur', () => actualizarDatalists());
-  marcaEquipo.addEventListener('blur', () => actualizarDatalists());
-  modeloEquipo.addEventListener('blur', () => actualizarDatalists());
+  // Listeners de catálogos
+  btnDepAdd.addEventListener('click', () => agregarElementoCatalogo('departamentos', depInput.value.trim(), null, depInput, depList));
+  btnAreaAdd.addEventListener('click', () => agregarElementoCatalogo('areas', areaInput.value.trim(), areaDeptoSelect.value, areaInput, areaList));
+  btnMarcaAdd.addEventListener('click', () => agregarElementoCatalogo('marcas', marcaInput.value.trim(), null, marcaInput, marcaList));
+  btnModeloAdd.addEventListener('click', () => agregarElementoCatalogo('modelos', modeloInput.value.trim(), null, modeloInput, modeloList));
+
+  // Enter en inputs de catálogo
+  depInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnDepAdd.click(); });
+  areaInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnAreaAdd.click(); });
+  marcaInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnMarcaAdd.click(); });
+  modeloInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnModeloAdd.click(); });
+
+  // Dependencia área-departamento en formulario de registro
+  selectDepartamento.addEventListener('change', filtrarAreasFormulario);
 });
 
+// ==================== MANEJO DE CATÁLOGOS ====================
+function cargarCatalogosDesdeStorage() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      catalogos = JSON.parse(stored);
+    } catch (e) {
+      catalogos = { departamentos: [], areas: [], marcas: [], modelos: [] };
+    }
+  }
+  // Asegurar estructura
+  if (!catalogos.departamentos) catalogos.departamentos = [];
+  if (!catalogos.areas) catalogos.areas = [];
+  if (!catalogos.marcas) catalogos.marcas = [];
+  if (!catalogos.modelos) catalogos.modelos = [];
+}
+
+function guardarCatalogosEnStorage() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(catalogos));
+}
+
+function agregarElementoCatalogo(tipo, valor, deptoPadre, inputElement, listElement) {
+  if (!valor) return alert('Ingrese un valor.');
+  valor = valor.trim();
+  // Capitalizar si es departamento o área, mayúsculas para marcas/modelos
+  if (tipo === 'departamentos') {
+    valor = capitalizarPalabras(valor);
+    if (catalogos.departamentos.includes(valor)) return alert('Ya existe ese departamento.');
+    catalogos.departamentos.push(valor);
+    catalogos.departamentos.sort();
+  } else if (tipo === 'areas') {
+    if (!deptoPadre) return alert('Seleccione un departamento para el área.');
+    valor = capitalizarPalabras(valor);
+    if (catalogos.areas.some(a => a.nombre === valor && a.departamento === deptoPadre)) return alert('Ya existe esa área en ese departamento.');
+    catalogos.areas.push({ nombre: valor, departamento: deptoPadre });
+    catalogos.areas.sort((a,b) => a.nombre.localeCompare(b.nombre));
+  } else if (tipo === 'marcas') {
+    valor = valor.toUpperCase();
+    if (catalogos.marcas.includes(valor)) return alert('Ya existe esa marca.');
+    catalogos.marcas.push(valor);
+    catalogos.marcas.sort();
+  } else if (tipo === 'modelos') {
+    valor = valor.toUpperCase();
+    if (catalogos.modelos.includes(valor)) return alert('Ya existe ese modelo.');
+    catalogos.modelos.push(valor);
+    catalogos.modelos.sort();
+  }
+  guardarCatalogosEnStorage();
+  inputElement.value = '';
+  if (tipo === 'areas') areaDeptoSelect.value = '';
+  renderizarListaCatalogo(tipo, listElement);
+  poblarSelectsCatalogo(); // Refrescar selects en registro
+}
+
+function eliminarElementoCatalogo(tipo, valor, deptoPadre, listElement) {
+  if (tipo === 'departamentos') {
+    catalogos.departamentos = catalogos.departamentos.filter(d => d !== valor);
+    // Eliminar también las áreas asociadas
+    catalogos.areas = catalogos.areas.filter(a => a.departamento !== valor);
+  } else if (tipo === 'areas') {
+    catalogos.areas = catalogos.areas.filter(a => !(a.nombre === valor && a.departamento === deptoPadre));
+  } else if (tipo === 'marcas') {
+    catalogos.marcas = catalogos.marcas.filter(m => m !== valor);
+  } else if (tipo === 'modelos') {
+    catalogos.modelos = catalogos.modelos.filter(m => m !== valor);
+  }
+  guardarCatalogosEnStorage();
+  renderizarListaCatalogo(tipo, listElement);
+  poblarSelectsCatalogo();
+}
+
+function renderizarListaCatalogo(tipo, listElement) {
+  let items = [];
+  if (tipo === 'departamentos') {
+    items = catalogos.departamentos;
+    listElement.innerHTML = items.map(d => `
+      <li class="catalog-item">
+        <span>${escapeHtml(d)}</span>
+        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('departamentos','${escapeHtml(d)}', null, document.getElementById('dep-catalogo-list'))">✕</button>
+      </li>
+    `).join('');
+  } else if (tipo === 'areas') {
+    items = catalogos.areas;
+    listElement.innerHTML = items.map(a => `
+      <li class="catalog-item">
+        <span>${escapeHtml(a.nombre)} (${escapeHtml(a.departamento)})</span>
+        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('areas','${escapeHtml(a.nombre)}', '${escapeHtml(a.departamento)}', document.getElementById('area-catalogo-list'))">✕</button>
+      </li>
+    `).join('');
+  } else if (tipo === 'marcas') {
+    items = catalogos.marcas;
+    listElement.innerHTML = items.map(m => `
+      <li class="catalog-item">
+        <span>${escapeHtml(m)}</span>
+        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('marcas','${escapeHtml(m)}', null, document.getElementById('marca-catalogo-list'))">✕</button>
+      </li>
+    `).join('');
+  } else if (tipo === 'modelos') {
+    items = catalogos.modelos;
+    listElement.innerHTML = items.map(m => `
+      <li class="catalog-item">
+        <span>${escapeHtml(m)}</span>
+        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('modelos','${escapeHtml(m)}', null, document.getElementById('modelo-catalogo-list'))">✕</button>
+      </li>
+    `).join('');
+  }
+}
+
+function poblarSelectsCatalogo() {
+  // Departamentos (formulario registro)
+  selectDepartamento.innerHTML = '<option value="">Seleccione...</option>' +
+    catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+
+  // Áreas inicial (todas, se filtrará después)
+  poblarAreasFormulario();
+
+  // Marcas y Modelos (formulario registro)
+  selectMarcaEquipo.innerHTML = '<option value="">Marca...</option>' +
+    catalogos.marcas.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+  selectModeloEquipo.innerHTML = '<option value="">Modelo...</option>' +
+    catalogos.modelos.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+
+  // Select de departamento en catálogo de áreas
+  areaDeptoSelect.innerHTML = '<option value="">Seleccione departamento</option>' +
+    catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+}
+
+function poblarAreasFormulario(areasFiltradas = null) {
+  if (!areasFiltradas) {
+    // Si no se pasa filtro, usar todas las áreas
+    areasFiltradas = catalogos.areas;
+  }
+  selectArea.innerHTML = '<option value="">Seleccione...</option>' +
+    areasFiltradas.map(a => `<option value="${escapeHtml(a.nombre)}">${escapeHtml(a.nombre)}</option>`).join('');
+}
+
+function filtrarAreasFormulario() {
+  const deptoSeleccionado = selectDepartamento.value;
+  if (!deptoSeleccionado) {
+    selectArea.innerHTML = '<option value="">Seleccione departamento primero</option>';
+    selectArea.disabled = true;
+    return;
+  }
+  selectArea.disabled = false;
+  const areasFiltradas = catalogos.areas.filter(a => a.departamento === deptoSeleccionado);
+  poblarAreasFormulario(areasFiltradas);
+}
+
+// ==================== PESTAÑAS ====================
 function setupTabs() {
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -109,9 +265,23 @@ function switchTab(tab) {
   } else {
     filtersBar.style.display = 'none';
   }
+
+  if (tab === 'configuracion') {
+    renderizarListasConfiguracion();
+  }
+
   actualizarVista();
 }
 
+function renderizarListasConfiguracion() {
+  renderizarListaCatalogo('departamentos', depList);
+  renderizarListaCatalogo('areas', areaList);
+  renderizarListaCatalogo('marcas', marcaList);
+  renderizarListaCatalogo('modelos', modeloList);
+  poblarSelectsCatalogo(); // por si acaso
+}
+
+// ==================== FILTROS (Dashboard/Reportes) ====================
 function setupFilters() {
   filterPiso.addEventListener('input', () => { filters.piso = filterPiso.value.trim().toLowerCase(); actualizarVista(); });
   filterDepartamento.addEventListener('input', () => { filters.departamento = filterDepartamento.value.trim().toLowerCase(); actualizarVista(); });
@@ -129,7 +299,7 @@ function limpiarFiltros() {
   actualizarVista();
 }
 
-// ==================== FETCH (REGLAS CORS) ====================
+// ==================== FETCH ====================
 async function fetchGetRegistros() {
   const response = await fetch(API_URL);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -155,32 +325,38 @@ async function fetchPost(payload) {
 async function cargarRegistros() {
   try {
     registros = await fetchGetRegistros();
-    actualizarDatalists();
-    filtrarAreasPorDepartamento();
+    actualizarFiltrosDatalist();
     actualizarVista();
   } catch (error) {
     console.error(error);
-    alert('Error de conexión. Verifica tu red o que la URL sea correcta.');
+    alert('Error de conexión. Verifica tu red o la URL.');
   }
 }
 
-// ==================== CAPITALIZACIÓN / MAYÚSCULAS ====================
+// ==================== UTILIDADES DE TEXTO ====================
 function capitalizarPalabras(str) {
   return str.replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 // ==================== CRUD ====================
 async function guardarEstacion() {
   if (!formEdificio.value) return mostrarStatus('error', 'Selecciona un edificio.');
-  if (!formDepartamento.value.trim()) return mostrarStatus('error', 'El departamento es obligatorio.');
+  if (!selectDepartamento.value) return mostrarStatus('error', 'El departamento es obligatorio.');
   if (!formAsignado.value.trim()) return mostrarStatus('error', 'El campo "A quién fue asignado" es obligatorio.');
   if (equiposTemporales.length === 0) return mostrarStatus('error', 'Agrega al menos un equipo.');
 
   const nuevaEstacion = {
     edificio: formEdificio.value,
     piso: formPiso.value.trim(),
-    departamento: capitalizarPalabras(formDepartamento.value.trim()),
-    area: capitalizarPalabras(formArea.value.trim()),
+    departamento: capitalizarPalabras(selectDepartamento.value),
+    area: capitalizarPalabras(selectArea.value),
     asignado: capitalizarPalabras(formAsignado.value.trim()),
     cargo: capitalizarPalabras(formCargo.value.trim()),
     equipos: [...equiposTemporales]
@@ -196,7 +372,8 @@ async function guardarEstacion() {
   };
 
   registros.unshift(registroOptimista);
-  limpiarCamposPostGuardado(); // PARCHE 3: antes era limpiarFormulario() (borraba ubicación)
+  // Limpiar solo sección de usuario y equipos, NO ubicación
+  limpiarSeccionUsuarioYEquipos();
   actualizarVista();
   mostrarStatus('loading', 'Guardando...');
 
@@ -237,8 +414,8 @@ function agregarEquipoTemporal() {
 
   const equipo = {
     tipo,
-    marca: marcaEquipo.value.trim().toUpperCase(),
-    modelo: modeloEquipo.value.trim().toUpperCase(),
+    marca: selectMarcaEquipo.value || '',
+    modelo: selectModeloEquipo.value || '',
     serie: serieEquipo.value.trim().toUpperCase(),
     activo: activoEquipo.value.trim().toUpperCase()
   };
@@ -247,21 +424,17 @@ function agregarEquipoTemporal() {
   renderEquiposTemporales();
   limpiarCamposEquipo();
   tipoEquipo.focus();
-
-  actualizarDatalists(); // Obliga a memorizar lo nuevo
 }
 
 function eliminarEquipoTemporal(index) {
   equiposTemporales.splice(index, 1);
   renderEquiposTemporales();
-
-  actualizarDatalists();
 }
 
 function limpiarCamposEquipo() {
   tipoEquipo.value = '';
-  marcaEquipo.value = '';
-  modeloEquipo.value = '';
+  selectMarcaEquipo.value = '';
+  selectModeloEquipo.value = '';
   serieEquipo.value = '';
   activoEquipo.value = '';
 }
@@ -285,29 +458,28 @@ function renderEquiposTemporales() {
   `).join('');
 }
 
-// ==================== PARCHE 3: PERSISTENCIA DE UBICACIÓN ====================
-// A) Se usa DESPUÉS de guardar una estación: mantiene Edificio/Piso/
-//    Departamento/Área intactos para cargar rápido varias máquinas
-//    en el mismo lugar. Solo limpia Usuario + Equipos.
-function limpiarCamposPostGuardado() {
+function limpiarSeccionUsuarioYEquipos() {
   formAsignado.value = '';
   formCargo.value = '';
   equiposTemporales = [];
   renderEquiposTemporales();
   limpiarCamposEquipo();
   limpiarStatus();
-  actualizarDatalists();
-  formAsignado.focus(); // listo para el siguiente equipo/persona en el mismo sitio
 }
 
-// B) Reset TOTAL: es la única que borra también Ubicación.
-//    Atada al botón "🧹 Limpiar Formulario".
-function resetFormularioCompleto() {
+function limpiarFormulario() {
   formEdificio.value = '';
   formPiso.value = '';
-  formDepartamento.value = '';
-  formArea.value = '';
-  limpiarCamposPostGuardado(); // reutiliza la limpieza de usuario/equipos
+  selectDepartamento.value = '';
+  selectArea.value = '';
+  selectArea.disabled = true;
+  selectArea.innerHTML = '<option value="">Seleccione departamento primero</option>';
+  formAsignado.value = '';
+  formCargo.value = '';
+  equiposTemporales = [];
+  renderEquiposTemporales();
+  limpiarCamposEquipo();
+  limpiarStatus();
 }
 
 function mostrarStatus(tipo, msg) {
@@ -318,14 +490,14 @@ function limpiarStatus() { formStatus.textContent = ''; formStatus.className = '
 
 // ==================== RENDERIZADO DE VISTAS ====================
 function actualizarVista() {
-  if (currentTab === 'registro') return;
+  if (currentTab === 'registro' || currentTab === 'configuracion') return;
   const filtrados = aplicarFiltros(registros);
   actualizarFiltrosDatalist();
   if (currentTab === 'dashboard') {
     renderStats(filtrados);
-    renderTable(dashboardTableContainer, filtrados, true);
+    renderTable(dashboardTableContainer, filtrados);
   } else if (currentTab === 'reportes') {
-    renderTable(reportesTableContainer, filtrados, true);
+    renderTable(reportesTableContainer, filtrados);
   }
 }
 
@@ -340,114 +512,18 @@ function aplicarFiltros(data) {
   });
 }
 
-// ==================== PARCHE 2: helper anti-parpadeo ====================
-// No reescribe el DOM si el HTML resultante es idéntico al ya renderizado.
-// Se apoya en dataset.cache como memoria del último valor pintado.
-function setDatalistOptions(datalistEl, valores) {
-  const html = valores.map(v => `<option value="${escapeHtml(v)}">`).join('');
-  if (datalistEl.dataset.cache === html) return; // sin cambios: no tocar el DOM
-  datalistEl.dataset.cache = html;
-  datalistEl.innerHTML = html;
-}
-
 function actualizarFiltrosDatalist() {
   const pisos = [...new Set(registros.map(r => r.piso).filter(Boolean))].sort();
   const deptos = [...new Set(registros.map(r => r.departamento).filter(Boolean))].sort();
   const areas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
   const resp = [...new Set(registros.map(r => `${r.asignado||''} ${r.cargo||''}`.trim()).filter(Boolean))].sort();
 
-  setDatalistOptions(document.getElementById('datalist-filter-pisos'), pisos);
-  setDatalistOptions(document.getElementById('datalist-filter-deptos'), deptos);
-  setDatalistOptions(document.getElementById('datalist-filter-areas'), areas);
-  setDatalistOptions(document.getElementById('datalist-filter-resp'), resp);
+  document.getElementById('datalist-filter-pisos').innerHTML = pisos.map(v => `<option value="${escapeHtml(v)}">`).join('');
+  document.getElementById('datalist-filter-deptos').innerHTML = deptos.map(v => `<option value="${escapeHtml(v)}">`).join('');
+  document.getElementById('datalist-filter-areas').innerHTML = areas.map(v => `<option value="${escapeHtml(v)}">`).join('');
+  document.getElementById('datalist-filter-resp').innerHTML = resp.map(v => `<option value="${escapeHtml(v)}">`).join('');
 }
 
-// ==================== DATALISTS DINÁMICOS (Memoria Viva) ====================
-function actualizarDatalists() {
-  const todosPisos = new Set();
-  const todosDeptos = new Set();
-  const todasAreas = new Set();
-
-  registros.forEach(r => {
-    if (r.piso) todosPisos.add(r.piso);
-    if (r.departamento) todosDeptos.add(r.departamento);
-    if (r.area) todasAreas.add(r.area);
-  });
-
-  const pisoActual = formPiso.value.trim();
-  const deptoActual = formDepartamento.value.trim();
-  const areaActual = formArea.value.trim();
-
-  if (pisoActual) todosPisos.add(pisoActual);
-  if (deptoActual) todosDeptos.add(deptoActual);
-  if (areaActual) todasAreas.add(areaActual);
-
-  setDatalistOptions(datalistPisos, [...todosPisos].sort());
-  setDatalistOptions(datalistDepartamentos, [...todosDeptos].sort());
-
-  const todasMarcas = new Set();
-  const todosModelos = new Set();
-
-  registros.forEach(r => {
-    parseEquipos(r.equipos).forEach(eq => {
-      if (eq.marca) todasMarcas.add(eq.marca);
-      if (eq.modelo) todosModelos.add(eq.modelo);
-    });
-  });
-
-  equiposTemporales.forEach(eq => {
-    if (eq.marca) todasMarcas.add(eq.marca);
-    if (eq.modelo) todosModelos.add(eq.modelo);
-  });
-
-  const marcaInput = marcaEquipo.value.trim().toUpperCase();
-  const modeloInput = modeloEquipo.value.trim().toUpperCase();
-  if (marcaInput) todasMarcas.add(marcaInput);
-  if (modeloInput) todosModelos.add(modeloInput);
-
-  setDatalistOptions(datalistMarcas, [...todasMarcas].sort());
-  setDatalistOptions(datalistModelos, [...todosModelos].sort());
-
-  filtrarAreasPorDepartamento([...todasAreas].sort());
-  actualizarFiltrosDatalist();
-}
-
-// ==================== FILTRO DEPENDIENTE: ÁREAS SEGÚN DEPARTAMENTO ====================
-function filtrarAreasPorDepartamento(areasDisponibles = null) {
-  const deptoActual = formDepartamento.value.trim().toLowerCase();
-
-  if (!areasDisponibles) {
-    const todasAreas = new Set();
-    registros.forEach(r => { if (r.area) todasAreas.add(r.area); });
-    const areaInput = formArea.value.trim();
-    if (areaInput) todasAreas.add(areaInput);
-    areasDisponibles = [...todasAreas].sort();
-  }
-
-  if (!deptoActual) {
-    setDatalistOptions(datalistAreas, areasDisponibles);
-    return;
-  }
-
-  const deptoLower = deptoActual;
-  const areasFiltradas = new Set();
-
-  registros.forEach(r => {
-    if ((r.departamento || '').toLowerCase() === deptoLower && r.area) {
-      areasFiltradas.add(r.area);
-    }
-  });
-
-  const areaInput = formArea.value.trim();
-  if (areaInput) {
-    areasFiltradas.add(areaInput);
-  }
-
-  const resultado = [...areasFiltradas].sort();
-  setDatalistOptions(datalistAreas, resultado);
-}
-
-// ==================== RENDER STATS ====================
 function renderStats(data) {
   const totalEstaciones = data.length;
   const totalEquipos = data.reduce((sum, r) => sum + parseEquipos(r.equipos).length, 0);
@@ -467,8 +543,7 @@ function renderStats(data) {
   `;
 }
 
-// ==================== RENDER TABLE ====================
-function renderTable(container, data, expandible = true) {
+function renderTable(container, data) {
   if (data.length === 0) {
     container.innerHTML = '<p style="text-align:center;padding:20px;">No se encontraron registros.</p>';
     return;
@@ -571,16 +646,8 @@ btnExportCSV.addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// ==================== UTILIDADES ====================
-function escapeHtml(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
 // ==================== EVENT LISTENERS ====================
 btnAgregarEquipo.addEventListener('click', agregarEquipoTemporal);
 btnGuardar.addEventListener('click', guardarEstacion);
-btnLimpiarForm.addEventListener('click', resetFormularioCompleto); // PARCHE 4: antes llamaba a limpiarFormulario
+btnLimpiarForm.addEventListener('click', limpiarFormulario);
 activoEquipo.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); agregarEquipoTemporal(); } });
