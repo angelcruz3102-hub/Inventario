@@ -35,7 +35,6 @@ const userInfo = document.getElementById('user-info');
 const userNameDisplay = document.getElementById('user-name-display');
 const btnLogout = document.getElementById('btn-logout');
 const tabConfigBtn = document.getElementById('tab-config-btn');
-const tabAdminBtn = document.getElementById('tab-admin-btn');
 
 // Registro – ubicación
 const formEdificio = document.getElementById('edificio');
@@ -105,9 +104,6 @@ const csvStatus = document.getElementById('csv-status');
 const adminUsuario = document.getElementById('admin-usuario');
 const adminPassword = document.getElementById('admin-password');
 const adminRol = document.getElementById('admin-rol');
-const permExportar = document.getElementById('perm-exportar');
-const permEditar = document.getElementById('perm-editar');
-const permEliminar = document.getElementById('perm-eliminar');
 const btnAgregarUsuario = document.getElementById('btn-agregar-usuario');
 const usuariosTableContainer = document.getElementById('usuarios-table-container');
 
@@ -143,13 +139,10 @@ document.addEventListener('DOMContentLoaded', () => {
   btnImportCSV.addEventListener('click', importarCSV);
 
   // Admin usuarios
-  btnAgregarUsuario.addEventListener('click', agregarOActualizarUsuario);
+  btnAgregarUsuario.addEventListener('click', agregarUsuarioDesdeConfig);
 
   // Logout
   btnLogout.addEventListener('click', logout);
-
-  // Exportar (ocultar si no tiene permiso)
-  ajustarUIporRol();
 });
 
 // ==================== AUTENTICACIÓN Y SESIÓN ====================
@@ -257,26 +250,75 @@ function mostrarInfoUsuario() {
 
 function ajustarUIporRol() {
   if (!currentUser) {
-    // Sin sesión, ocultar todo sensible
     tabConfigBtn.style.display = 'none';
-    tabAdminBtn.style.display = 'none';
     btnExportCSV.style.display = 'none';
     return;
   }
   const esAdmin = currentUser.rol === 'admin';
+  // Ocultar o mostrar pestaña Configuración según rol
   tabConfigBtn.style.display = esAdmin ? 'inline-flex' : 'none';
-  tabAdminBtn.style.display = esAdmin ? 'inline-flex' : 'none';
   btnExportCSV.style.display = currentUser.permisos.exportar ? 'inline-flex' : 'none';
-  // Ocultar botones de eliminar en tablas si no tiene permiso
-  document.querySelectorAll('.btn-delete').forEach(btn => {
-    btn.style.display = currentUser.permisos.eliminar ? 'inline-flex' : 'none';
-  });
-  // Si la pestaña actual es config/admin y no es admin, cambiar a registro
-  if ((currentTab === 'configuracion' || currentTab === 'admin') && !esAdmin) {
+
+  // Si la pestaña actual es configuración y el usuario no es admin, redirigir
+  if (currentTab === 'configuracion' && !esAdmin) {
     switchTab('registro');
   }
-  // Forzar re-render de tablas para mostrar/ocultar botones
+
+  // Re-render para mostrar/ocultar botones de eliminar
   actualizarVista();
+}
+
+// ==================== CRUD DE USUARIOS (localStorage) ====================
+function agregarUsuarioDesdeConfig() {
+  const usuario = adminUsuario.value.trim();
+  const password = adminPassword.value.trim();
+  const rol = adminRol.value;
+  if (!usuario || !password) return alert('Usuario y contraseña son obligatorios.');
+
+  let usuarios = obtenerUsuarios();
+  if (usuarios.find(u => u.usuario === usuario)) return alert('Ese nombre de usuario ya existe.');
+
+  // Asignar permisos por defecto según rol
+  const permisos = {
+    exportar: rol === 'admin',
+    editar: true,
+    eliminar: rol === 'admin'
+  };
+
+  usuarios.push({ usuario, password, rol, permisos });
+  guardarUsuarios(usuarios);
+  adminUsuario.value = '';
+  adminPassword.value = '';
+  renderTablaUsuariosConfig();
+}
+
+function eliminarUsuarioDesdeConfig(usuario) {
+  if (usuario === 'admin') return alert('No se puede eliminar al superusuario admin.');
+  if (!confirm(`¿Eliminar al usuario "${usuario}"?`)) return;
+  let usuarios = obtenerUsuarios();
+  usuarios = usuarios.filter(u => u.usuario !== usuario);
+  guardarUsuarios(usuarios);
+  renderTablaUsuariosConfig();
+}
+
+function renderTablaUsuariosConfig() {
+  if (!usuariosTableContainer) return;
+  const usuarios = obtenerUsuarios();
+  if (usuarios.length === 0) {
+    usuariosTableContainer.innerHTML = '<p style="text-align:center;padding:10px;">No hay usuarios creados.</p>';
+    return;
+  }
+  let html = `<table>
+    <thead><tr><th>Usuario</th><th>Rol</th><th style="width:50px;">Acción</th></tr></thead><tbody>`;
+  usuarios.forEach(u => {
+    html += `<tr>
+      <td>${escapeHtml(u.usuario)}</td>
+      <td>${u.rol === 'admin' ? 'Administrador' : 'Operador'}</td>
+      <td><button class="btn btn-delete" onclick="eliminarUsuarioDesdeConfig('${escapeHtml(u.usuario)}')">🗑️</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  usuariosTableContainer.innerHTML = html;
 }
 
 // ==================== MANEJO DE CATÁLOGOS JERÁRQUICOS ====================
@@ -289,17 +331,12 @@ function cargarCatalogosDesdeStorage() {
       catalogos = { departamentos: [], areas: [], tiposEquipo: [], marcas: [], modelos: [] };
     }
   }
-  // Asegurar estructura actualizada
+  // Asegurar estructura
   if (!catalogos.tiposEquipo) catalogos.tiposEquipo = [];
   if (!Array.isArray(catalogos.marcas)) catalogos.marcas = [];
-  else {
-    // Migrar marcas planas a objetos si es necesario
-    catalogos.marcas = catalogos.marcas.map(m => typeof m === 'string' ? { nombre: m, tipoEquipo: '' } : m);
-  }
+  else catalogos.marcas = catalogos.marcas.map(m => typeof m === 'string' ? { nombre: m, tipoEquipo: '' } : m);
   if (!Array.isArray(catalogos.modelos)) catalogos.modelos = [];
-  else {
-    catalogos.modelos = catalogos.modelos.map(m => typeof m === 'string' ? { nombre: m, marca: '' } : m);
-  }
+  else catalogos.modelos = catalogos.modelos.map(m => typeof m === 'string' ? { nombre: m, marca: '' } : m);
   guardarCatalogosEnStorage();
 }
 
@@ -410,13 +447,9 @@ function poblarSelectsCatalogo() {
   tipoEquipo.innerHTML = '<option value="">Tipo...</option>' +
     catalogos.tiposEquipo.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
 
-  // Marcas en formulario (depende de tipo, se actualiza en cascada)
   actualizarMarcasPorTipo();
-
-  // Modelos (depende de marca)
   actualizarModelosPorMarca();
 
-  // Departamentos
   selectDepartamento.innerHTML = '<option value="">Seleccione...</option>' +
     catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
 
@@ -430,8 +463,10 @@ function poblarSelectsCatalogo() {
   areaDeptoSelect.innerHTML = '<option value="">Seleccione departamento</option>' +
     catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
 
-  // Refrescar listas visuales si está en config
-  if (currentTab === 'configuracion') renderizarListasConfiguracion();
+  if (currentTab === 'configuracion') {
+    renderizarListasConfiguracion();
+    renderTablaUsuariosConfig();
+  }
 }
 
 function actualizarMarcasPorTipo() {
@@ -488,7 +523,6 @@ async function importarCSV() {
 
     const nuevosItems = [];
     if (tipo === 'equipos') {
-      // Formato esperado: Tipo,Marca,Modelo
       for (let i = 1; i < lineas.length; i++) {
         const cols = lineas[i].split(',').map(c => c.trim());
         if (cols.length >= 3) {
@@ -498,7 +532,6 @@ async function importarCSV() {
           if (tipo && marca && modelo) nuevosItems.push({ tipo, marca, modelo });
         }
       }
-      // Deduplicar y fusionar
       nuevosItems.forEach(item => {
         if (!catalogos.tiposEquipo.includes(item.tipo)) catalogos.tiposEquipo.push(item.tipo);
         if (!catalogos.marcas.some(m => m.nombre === item.marca && m.tipoEquipo === item.tipo))
@@ -507,7 +540,6 @@ async function importarCSV() {
           catalogos.modelos.push({ nombre: item.modelo, marca: item.marca });
       });
     } else if (tipo === 'ubicaciones') {
-      // Formato: Departamento, Área
       for (let i = 1; i < lineas.length; i++) {
         const cols = lineas[i].split(',').map(c => c.trim());
         if (cols.length >= 2) {
@@ -551,74 +583,14 @@ function readFile(file) {
   });
 }
 
-// ==================== ADMINISTRACIÓN DE USUARIOS ====================
-function agregarOActualizarUsuario() {
-  const usuario = adminUsuario.value.trim();
-  const password = adminPassword.value.trim();
-  const rol = adminRol.value;
-  if (!usuario || !password) return alert('Usuario y contraseña obligatorios.');
-
-  const permisos = {
-    exportar: permExportar.checked,
-    editar: permEditar.checked,
-    eliminar: permEliminar.checked
-  };
-
-  let usuarios = obtenerUsuarios();
-  const existente = usuarios.find(u => u.usuario === usuario);
-  if (existente) {
-    existente.password = password;
-    existente.rol = rol;
-    existente.permisos = permisos;
-  } else {
-    usuarios.push({ usuario, password, rol, permisos });
-  }
-  guardarUsuarios(usuarios);
-  adminUsuario.value = '';
-  adminPassword.value = '';
-  renderTablaUsuarios();
-}
-
-function eliminarUsuario(usuario) {
-  if (usuario === 'admin') return alert('No se puede eliminar al admin principal.');
-  let usuarios = obtenerUsuarios();
-  usuarios = usuarios.filter(u => u.usuario !== usuario);
-  guardarUsuarios(usuarios);
-  renderTablaUsuarios();
-}
-
-function renderTablaUsuarios() {
-  const usuarios = obtenerUsuarios();
-  if (usuarios.length === 0) {
-    usuariosTableContainer.innerHTML = '<p style="text-align:center;padding:20px;">No hay usuarios registrados.</p>';
-    return;
-  }
-  let html = `<table>
-    <thead><tr><th>Usuario</th><th>Rol</th><th>Permisos</th><th>Acción</th></tr></thead><tbody>`;
-  usuarios.forEach(u => {
-    const permisosStr = [];
-    if (u.permisos.exportar) permisosStr.push('Exportar');
-    if (u.permisos.editar) permisosStr.push('Editar');
-    if (u.permisos.eliminar) permisosStr.push('Eliminar');
-    html += `<tr>
-      <td>${escapeHtml(u.usuario)}</td>
-      <td>${u.rol === 'admin' ? 'Administrador' : 'Operador'}</td>
-      <td>${permisosStr.join(', ') || 'Ninguno'}</td>
-      <td><button class="btn btn-delete" onclick="eliminarUsuario('${escapeHtml(u.usuario)}')">🗑️</button></td>
-    </tr>`;
-  });
-  html += '</tbody></table>';
-  usuariosTableContainer.innerHTML = html;
-}
-
 // ==================== PESTAÑAS ====================
 function setupTabs() {
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
-      if ((tab === 'configuracion' || tab === 'admin') && (!currentUser || currentUser.rol !== 'admin')) {
-        alert('Acceso restringido.');
-        return;
+      // Control de acceso: si la pestaña es configuración y no es admin, denegar
+      if (tab === 'configuracion' && (!currentUser || currentUser.rol !== 'admin')) {
+        return; // La pestaña ni siquiera debería ser visible, pero por seguridad
       }
       switchTab(tab);
     });
@@ -639,8 +611,10 @@ function switchTab(tab) {
     filtersBar.style.display = 'none';
   }
 
-  if (tab === 'configuracion') renderizarListasConfiguracion();
-  if (tab === 'admin') renderTablaUsuarios();
+  if (tab === 'configuracion') {
+    renderizarListasConfiguracion();
+    renderTablaUsuariosConfig();
+  }
 
   actualizarVista();
 }
@@ -651,7 +625,7 @@ function renderizarListasConfiguracion() {
   renderizarListaCatalogo('modelos', modeloList);
   renderizarListaCatalogo('departamentos', depList);
   renderizarListaCatalogo('areas', areaList);
-  poblarSelectsCatalogo();
+  poblarSelectsCatalogo(); // Refresca los selects
 }
 
 // ==================== FILTROS ====================
@@ -718,7 +692,7 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// ==================== CRUD ====================
+// ==================== CRUD ESTACIONES ====================
 async function guardarEstacion() {
   if (!formEdificio.value) return mostrarStatus('error', 'Selecciona un edificio.');
   if (!selectDepartamento.value) return mostrarStatus('error', 'El departamento es obligatorio.');
@@ -865,7 +839,7 @@ function limpiarStatus() { formStatus.textContent = ''; formStatus.className = '
 
 // ==================== RENDERIZADO DE VISTAS ====================
 function actualizarVista() {
-  if (currentTab === 'registro' || currentTab === 'configuracion' || currentTab === 'admin') return;
+  if (currentTab === 'registro' || currentTab === 'configuracion') return;
   const filtrados = aplicarFiltros(registros);
   actualizarFiltrosDatalist();
   if (currentTab === 'dashboard') {
@@ -1024,7 +998,7 @@ btnExportCSV.addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// ==================== EVENT LISTENERS ====================
+// ==================== EVENT LISTENERS ADICIONALES ====================
 btnAgregarEquipo.addEventListener('click', agregarEquipoTemporal);
 btnGuardar.addEventListener('click', guardarEstacion);
 btnLimpiarForm.addEventListener('click', limpiarFormulario);
