@@ -504,83 +504,142 @@ function filtrarAreasFormulario() {
     areasFiltradas.map(a => `<option value="${escapeHtml(a.nombre)}">${escapeHtml(a.nombre)}</option>`).join('');
 }
 
-// ==================== IMPORTACIÓN CSV ====================
-async function importarCSV() {
+// ==================== IMPORTACIÓN CSV (CORREGIDA - SIN FETCH, CON TRY/CATCH) ====================
+function importarCSV() {
   const file = csvFileInput.files[0];
   if (!file) {
     csvStatus.textContent = 'Seleccione un archivo CSV.';
     csvStatus.className = 'status-message error';
     return;
   }
+
   const tipo = csvTipoImport.value;
   csvStatus.textContent = 'Procesando...';
   csvStatus.className = 'status-message loading';
 
-  try {
-    const text = await readFile(file);
-    const lineas = text.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lineas.length < 2) throw new Error('Archivo vacío o sin datos.');
+  const reader = new FileReader();
 
-    const nuevosItems = [];
-    if (tipo === 'equipos') {
+  reader.onload = function(e) {
+    try {
+      const text = e.target.result;
+      const lineas = text.split(/\r?\n/).filter(line => line.trim() !== '');
+      if (lineas.length < 2) throw new Error('El archivo está vacío o no tiene datos.');
+
+      const nuevosItems = [];
+
       for (let i = 1; i < lineas.length; i++) {
-        const cols = lineas[i].split(',').map(c => c.trim());
-        if (cols.length >= 3) {
-          const tipo = capitalizarPalabras(cols[0]);
-          const marca = cols[1].toUpperCase();
-          const modelo = cols[2].toUpperCase();
-          if (tipo && marca && modelo) nuevosItems.push({ tipo, marca, modelo });
+        const campos = parsearLineaCSV(lineas[i]);
+        if (campos.length === 0) continue;
+
+        if (tipo === 'equipos') {
+          // Formato: Tipo, Marca, Modelo
+          if (campos.length < 3) continue;
+          const tipoEq = capitalizarPalabras(campos[0].trim());
+          const marca = campos[1].trim().toUpperCase();
+          const modelo = campos[2].trim().toUpperCase();
+          if (tipoEq && marca && modelo) {
+            nuevosItems.push({ tipo: tipoEq, marca, modelo });
+          }
+        } else if (tipo === 'ubicaciones') {
+          // Formato: Departamento, Área
+          if (campos.length < 2) continue;
+          const depto = capitalizarPalabras(campos[0].trim());
+          const area = capitalizarPalabras(campos[1].trim());
+          if (depto && area) {
+            nuevosItems.push({ depto, area });
+          }
         }
       }
-      nuevosItems.forEach(item => {
-        if (!catalogos.tiposEquipo.includes(item.tipo)) catalogos.tiposEquipo.push(item.tipo);
-        if (!catalogos.marcas.some(m => m.nombre === item.marca && m.tipoEquipo === item.tipo))
-          catalogos.marcas.push({ nombre: item.marca, tipoEquipo: item.tipo });
-        if (!catalogos.modelos.some(m => m.nombre === item.modelo && m.marca === item.marca))
-          catalogos.modelos.push({ nombre: item.modelo, marca: item.marca });
-      });
-    } else if (tipo === 'ubicaciones') {
-      for (let i = 1; i < lineas.length; i++) {
-        const cols = lineas[i].split(',').map(c => c.trim());
-        if (cols.length >= 2) {
-          const depto = capitalizarPalabras(cols[0]);
-          const area = capitalizarPalabras(cols[1]);
-          if (depto && area) nuevosItems.push({ depto, area });
-        }
+
+      // Deduplicar y fusionar con catálogos existentes
+      if (tipo === 'equipos') {
+        nuevosItems.forEach(item => {
+          if (!catalogos.tiposEquipo.includes(item.tipo)) {
+            catalogos.tiposEquipo.push(item.tipo);
+          }
+          if (!catalogos.marcas.some(m => m.nombre === item.marca && m.tipoEquipo === item.tipo)) {
+            catalogos.marcas.push({ nombre: item.marca, tipoEquipo: item.tipo });
+          }
+          if (!catalogos.modelos.some(m => m.nombre === item.modelo && m.marca === item.marca)) {
+            catalogos.modelos.push({ nombre: item.modelo, marca: item.marca });
+          }
+        });
+        catalogos.tiposEquipo.sort();
+        catalogos.marcas.sort((a,b) => a.nombre.localeCompare(b.nombre));
+        catalogos.modelos.sort((a,b) => a.nombre.localeCompare(b.nombre));
+      } else if (tipo === 'ubicaciones') {
+        nuevosItems.forEach(item => {
+          if (!catalogos.departamentos.includes(item.depto)) {
+            catalogos.departamentos.push(item.depto);
+          }
+          if (!catalogos.areas.some(a => a.nombre === item.area && a.departamento === item.depto)) {
+            catalogos.areas.push({ nombre: item.area, departamento: item.depto });
+          }
+        });
+        catalogos.departamentos.sort();
+        catalogos.areas.sort((a,b) => a.nombre.localeCompare(b.nombre));
       }
-      nuevosItems.forEach(item => {
-        if (!catalogos.departamentos.includes(item.depto)) catalogos.departamentos.push(item.depto);
-        if (!catalogos.areas.some(a => a.nombre === item.area && a.departamento === item.depto))
-          catalogos.areas.push({ nombre: item.area, departamento: item.depto });
-      });
+
+      guardarCatalogosEnStorage();
+      poblarSelectsCatalogo(); // Refrescar todos los <select> del sistema
+      csvFileInput.value = ''; // Limpiar input file
+      csvStatus.textContent = `✅ Importados ${nuevosItems.length} registros sin duplicados.`;
+      csvStatus.className = 'status-message success';
+      setTimeout(() => { csvStatus.textContent = ''; }, 4000);
+
+    } catch (error) {
+      console.error(error);
+      csvStatus.textContent = '';
+      csvStatus.className = '';
+      alert('Error al procesar el CSV:\n' + error.message);
     }
+  };
 
-    catalogos.departamentos.sort();
-    catalogos.tiposEquipo.sort();
-    catalogos.marcas.sort((a,b) => a.nombre.localeCompare(b.nombre));
-    catalogos.modelos.sort((a,b) => a.nombre.localeCompare(b.nombre));
-    catalogos.areas.sort((a,b) => a.nombre.localeCompare(b.nombre));
+  reader.onerror = function() {
+    csvStatus.textContent = '';
+    csvStatus.className = '';
+    alert('Error al leer el archivo. Asegúrate de que sea un archivo CSV válido.');
+  };
 
-    guardarCatalogosEnStorage();
-    poblarSelectsCatalogo();
-    csvFileInput.value = '';
-    csvStatus.textContent = `✅ Importados ${nuevosItems.length} registros sin duplicados.`;
-    csvStatus.className = 'status-message success';
-    setTimeout(() => { csvStatus.textContent = ''; }, 4000);
-  } catch (error) {
-    console.error(error);
-    csvStatus.textContent = 'Error al procesar CSV: ' + error.message;
-    csvStatus.className = 'status-message error';
-  }
+  reader.readAsText(file, 'UTF-8');
 }
 
-function readFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('Error al leer archivo'));
-    reader.readAsText(file);
-  });
+/**
+ * Parsea una línea CSV respetando comillas dobles y comas internas.
+ * Ejemplo: "Apellido, Nombre", Ciudad, 123 → ["Apellido, Nombre", "Ciudad", "123"]
+ */
+function parsearLineaCSV(linea) {
+  const resultado = [];
+  let campo = '';
+  let dentroDeComillas = false;
+
+  for (let i = 0; i < linea.length; i++) {
+    const caracter = linea[i];
+    if (dentroDeComillas) {
+      if (caracter === '"') {
+        // Si el siguiente también es comilla, es una comilla escapada ""
+        if (i + 1 < linea.length && linea[i + 1] === '"') {
+          campo += '"';
+          i++; // saltar la siguiente comilla
+        } else {
+          dentroDeComillas = false;
+        }
+      } else {
+        campo += caracter;
+      }
+    } else {
+      if (caracter === '"') {
+        dentroDeComillas = true;
+      } else if (caracter === ',') {
+        resultado.push(campo.trim());
+        campo = '';
+      } else {
+        campo += caracter;
+      }
+    }
+  }
+  resultado.push(campo.trim()); // último campo
+  return resultado;
 }
 
 // ==================== PESTAÑAS ====================
