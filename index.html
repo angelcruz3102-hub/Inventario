@@ -38,7 +38,6 @@
   <header class="header-container">
     <div class="logo-area" style="display: flex; align-items: center; gap: 12px;">
       <img src="logo.ico" alt="Logo INDRHI" style="height: 45px; width: auto; display: block;">
-      
       <div style="display: flex; flex-direction: column; justify-content: center;">
         <h1 style="margin: 0; font-size: 22px; color: #ffffff; letter-spacing: 1px; line-height: 1.1;">INDRHI</h1>
         <span style="font-size: 11px; color: #94a3b8; font-weight: 600; letter-spacing: 0.5px;">INSTITUTO NACIONAL DE RECURSOS HIDRÁULICOS</span>
@@ -96,17 +95,13 @@
           <div class="form-row">
             <div class="form-group">
               <label for="departamento">Departamento *</label>
-              <input type="text" id="departamento" placeholder="Escribe o selecciona..." list="datalist-departamentos" required>
-<datalist id="datalist-departamentos"></datalist>
-                <option value="">Seleccione...</option>
-              </select>
+              <input type="text" id="departamento" list="datalist-departamentos" placeholder="Buscar o escribir..." required autocomplete="off">
+              <datalist id="datalist-departamentos"></datalist>
             </div>
             <div class="form-group">
               <label for="area">Área</label>
-              <input type="text" id="area" placeholder="Escribe o selecciona..." list="datalist-areas">
-<datalist id="datalist-areas"></datalist>
-                <option value="">Seleccione departamento primero</option>
-              </select>
+              <input type="text" id="area" list="datalist-areas" placeholder="Buscar o escribir..." autocomplete="off">
+              <datalist id="datalist-areas"></datalist>
             </div>
           </div>
         </fieldset>
@@ -125,12 +120,12 @@
         <fieldset class="fieldset-equipos">
           <legend>Equipos Asignados</legend>
           <div class="equipos-form-inline">
-            <select id="tipo-equipo">
-              <option value="">Tipo...</option>
-            <input type="text" id="marca-equipo" placeholder="Marca..." list="datalist-marcas-equipo">
-<datalist id="datalist-marcas-equipo"></datalist>
-<input type="text" id="modelo-equipo" placeholder="Modelo..." list="datalist-modelos-equipo">
-<datalist id="datalist-modelos-equipo"></datalist>
+            <input type="text" id="tipo-equipo" list="datalist-tipos" placeholder="Tipo..." autocomplete="off">
+            <datalist id="datalist-tipos"></datalist>
+            <input type="text" id="marca-equipo" list="datalist-marcas" placeholder="Marca..." autocomplete="off" disabled>
+            <datalist id="datalist-marcas"></datalist>
+            <input type="text" id="modelo-equipo" list="datalist-modelos" placeholder="Modelo..." autocomplete="off" disabled>
+            <datalist id="datalist-modelos"></datalist>
             <input type="text" id="serie-equipo" placeholder="Serie">
             <input type="text" id="activo-equipo" placeholder="Activo Fijo">
             <button type="button" id="btn-agregar-equipo" class="btn btn-add">+ Agregar</button>
