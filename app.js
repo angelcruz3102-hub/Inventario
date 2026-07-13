@@ -6,8 +6,6 @@ let registros = [];
 let equiposTemporales = [];
 let currentTab = 'registro';
 let filters = { piso: '', departamento: '', area: '', responsable: '' };
-
-// Sesión actual
 let currentUser = null;
 
 // ==================== CATÁLOGOS (localStorage) ====================
@@ -15,17 +13,14 @@ const STORAGE_KEY = 'catalogosINDRHI';
 const USERS_KEY = 'usuariosINDRHI';
 let catalogos = {
   departamentos: [],
-  areas: [],          // { nombre: string, departamento: string }
+  areas: [],
   tiposEquipo: [],
-  marcas: [],         // { nombre: string, tipoEquipo: string }
-  modelos: []         // { nombre: string, marca: string }
+  marcas: [],
+  modelos: []
 };
-
-// Caché para parseEquipos
 const equiposCache = new Map();
 
 // ==================== ELEMENTOS DOM ====================
-// Login
 const loginOverlay = document.getElementById('login-overlay');
 const btnOperador = document.getElementById('btn-operador');
 const btnAdmin = document.getElementById('btn-admin');
@@ -39,7 +34,6 @@ const userNameDisplay = document.getElementById('user-name-display');
 const btnLogout = document.getElementById('btn-logout');
 const tabConfigBtn = document.getElementById('tab-config-btn');
 
-// Registro – ubicación
 const formEdificio = document.getElementById('edificio');
 const formPiso = document.getElementById('piso');
 const inputDepartamento = document.getElementById('departamento');
@@ -47,7 +41,6 @@ const inputArea = document.getElementById('area');
 const formAsignado = document.getElementById('asignado');
 const formCargo = document.getElementById('cargo');
 
-// Equipos
 const inputTipoEquipo = document.getElementById('tipo-equipo');
 const inputMarcaEquipo = document.getElementById('marca-equipo');
 const inputModeloEquipo = document.getElementById('modelo-equipo');
@@ -59,32 +52,27 @@ const btnGuardar = document.getElementById('btn-guardar');
 const btnLimpiarForm = document.getElementById('btn-limpiar-form');
 const formStatus = document.getElementById('form-status');
 
-// Datalists del formulario
 const datalistDepartamentos = document.getElementById('datalist-departamentos');
 const datalistAreas = document.getElementById('datalist-areas');
 const datalistTipos = document.getElementById('datalist-tipos');
 const datalistMarcas = document.getElementById('datalist-marcas');
 const datalistModelos = document.getElementById('datalist-modelos');
 
-// Tabs
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 const filtersBar = document.getElementById('filters-bar');
 
-// Filtros
 const filterPiso = document.getElementById('filter-piso');
 const filterDepartamento = document.getElementById('filter-departamento');
 const filterArea = document.getElementById('filter-area');
 const filterResponsable = document.getElementById('filter-responsable');
 const btnClearFilters = document.getElementById('btn-clear-filters');
 
-// Containers
 const statsContainer = document.getElementById('stats-container');
 const dashboardTableContainer = document.getElementById('table-container-dashboard');
 const reportesTableContainer = document.getElementById('table-container-reportes');
 const btnExportCSV = document.getElementById('btn-export-csv');
 
-// Configuración catálogos
 const tipoEquipoInput = document.getElementById('tipo-equipo-input');
 const btnTipoAdd = document.getElementById('btn-tipo-add');
 const tipoEquipoList = document.getElementById('tipo-equipo-list');
@@ -104,13 +92,11 @@ const areaInput = document.getElementById('area-catalogo-input');
 const btnAreaAdd = document.getElementById('btn-area-add');
 const areaList = document.getElementById('area-catalogo-list');
 
-// CSV
 const csvTipoImport = document.getElementById('csv-tipo-import');
 const csvFileInput = document.getElementById('csv-file-input');
 const btnImportCSV = document.getElementById('btn-import-csv');
 const csvStatus = document.getElementById('csv-status');
 
-// Admin usuarios
 const adminUsuario = document.getElementById('admin-usuario');
 const adminPassword = document.getElementById('admin-password');
 const adminRol = document.getElementById('admin-rol');
@@ -128,33 +114,24 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFilters();
   cargarRegistros();
 
-  // Listeners de catálogos
   btnTipoAdd.addEventListener('click', () => agregarElementoCatalogo('tiposEquipo', tipoEquipoInput.value.trim(), null, tipoEquipoInput, tipoEquipoList));
   btnMarcaAdd.addEventListener('click', () => agregarElementoCatalogo('marcas', marcaInput.value.trim(), marcaTipoSelect.value, marcaInput, marcaList));
   btnModeloAdd.addEventListener('click', () => agregarElementoCatalogo('modelos', modeloInput.value.trim(), modeloMarcaSelect.value, modeloInput, modeloList));
   btnDepAdd.addEventListener('click', () => agregarElementoCatalogo('departamentos', depInput.value.trim(), null, depInput, depList));
   btnAreaAdd.addEventListener('click', () => agregarElementoCatalogo('areas', areaInput.value.trim(), areaDeptoSelect.value, areaInput, areaList));
 
-  // Enter en inputs de catálogo
   [tipoEquipoInput, marcaInput, modeloInput, depInput, areaInput].forEach(inp => {
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.nextElementSibling?.click(); });
   });
 
-  // Dependencias en formulario (ahora con inputs y datalists)
   inputDepartamento.addEventListener('input', actualizarDatalistAreas);
   inputTipoEquipo.addEventListener('input', actualizarDatalistMarcas);
   inputMarcaEquipo.addEventListener('input', actualizarDatalistModelos);
 
-  // CSV
   btnImportCSV.addEventListener('click', importarCSV);
-
-  // Admin usuarios
   btnAgregarUsuario.addEventListener('click', agregarUsuarioDesdeConfig);
-
-  // Logout
   btnLogout.addEventListener('click', logout);
 
-  // Poblar datalists inicialmente
   poblarDatalists();
 });
 
@@ -162,12 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function inicializarUsuariosPorDefecto() {
   let usuarios = obtenerUsuarios();
   if (usuarios.length === 0) {
-    usuarios.push({
-      usuario: 'admin',
-      password: 'admin',
-      rol: 'admin',
-      permisos: { exportar: true, editar: true, eliminar: true }
-    });
+    usuarios.push({ usuario: 'admin', password: 'admin', rol: 'admin', permisos: { exportar: true, editar: true, eliminar: true } });
     guardarUsuarios(usuarios);
   }
 }
@@ -277,7 +249,7 @@ function ajustarUIporRol() {
   actualizarVista();
 }
 
-// ==================== CRUD DE USUARIOS (localStorage) ====================
+// ==================== CRUD DE USUARIOS ====================
 function agregarUsuarioDesdeConfig() {
   const usuario = adminUsuario.value.trim();
   const password = adminPassword.value.trim();
@@ -287,13 +259,7 @@ function agregarUsuarioDesdeConfig() {
   let usuarios = obtenerUsuarios();
   if (usuarios.find(u => u.usuario === usuario)) return alert('Ese nombre de usuario ya existe.');
 
-  const permisos = {
-    exportar: rol === 'admin',
-    editar: true,
-    eliminar: rol === 'admin'
-  };
-
-  usuarios.push({ usuario, password, rol, permisos });
+  usuarios.push({ usuario, password, rol, permisos: { exportar: rol === 'admin', editar: true, eliminar: rol === 'admin' } });
   guardarUsuarios(usuarios);
   adminUsuario.value = '';
   adminPassword.value = '';
@@ -316,14 +282,10 @@ function renderTablaUsuariosConfig() {
     usuariosTableContainer.innerHTML = '<p style="text-align:center;padding:10px;">No hay usuarios creados.</p>';
     return;
   }
-  let html = `<table>
-    <thead><tr><th>Usuario</th><th>Rol</th><th style="width:50px;">Acción</th></tr></thead><tbody>`;
+  let html = `<table><thead><tr><th>Usuario</th><th>Rol</th><th style="width:50px;">Acción</th></tr></thead><tbody>`;
   usuarios.forEach(u => {
-    html += `<tr>
-      <td>${escapeHtml(u.usuario)}</td>
-      <td>${u.rol === 'admin' ? 'Administrador' : 'Operador'}</td>
-      <td><button class="btn btn-delete" onclick="eliminarUsuarioDesdeConfig('${escapeHtml(u.usuario)}')">🗑️</button></td>
-    </tr>`;
+    html += `<tr><td>${escapeHtml(u.usuario)}</td><td>${u.rol === 'admin' ? 'Administrador' : 'Operador'}</td>
+      <td><button class="btn btn-delete" onclick="eliminarUsuarioDesdeConfig('${escapeHtml(u.usuario)}')">🗑️</button></td></tr>`;
   });
   html += '</tbody></table>';
   usuariosTableContainer.innerHTML = html;
@@ -333,11 +295,7 @@ function renderTablaUsuariosConfig() {
 function cargarCatalogosDesdeStorage() {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
-    try {
-      catalogos = JSON.parse(stored);
-    } catch (e) {
-      catalogos = { departamentos: [], areas: [], tiposEquipo: [], marcas: [], modelos: [] };
-    }
+    try { catalogos = JSON.parse(stored); } catch (e) { catalogos = { departamentos: [], areas: [], tiposEquipo: [], marcas: [], modelos: [] }; }
   }
   if (!catalogos.tiposEquipo) catalogos.tiposEquipo = [];
   if (!Array.isArray(catalogos.marcas)) catalogos.marcas = [];
@@ -360,13 +318,13 @@ function agregarElementoCatalogo(tipo, valor, padre, inputElement, listElement) 
     catalogos.tiposEquipo.push(valor);
     catalogos.tiposEquipo.sort();
   } else if (tipo === 'marcas') {
-    if (!padre) return alert('Seleccione un tipo de equipo para la marca.');
+    if (!padre) return alert('Seleccione un tipo de equipo.');
     valor = valor.toUpperCase();
     if (catalogos.marcas.some(m => m.nombre === valor && m.tipoEquipo === padre)) return alert('Esa marca ya existe para ese tipo.');
     catalogos.marcas.push({ nombre: valor, tipoEquipo: padre });
     catalogos.marcas.sort((a,b) => a.nombre.localeCompare(b.nombre));
   } else if (tipo === 'modelos') {
-    if (!padre) return alert('Seleccione una marca para el modelo.');
+    if (!padre) return alert('Seleccione una marca.');
     valor = valor.toUpperCase();
     if (catalogos.modelos.some(m => m.nombre === valor && m.marca === padre)) return alert('Ese modelo ya existe para esa marca.');
     catalogos.modelos.push({ nombre: valor, marca: padre });
@@ -377,7 +335,7 @@ function agregarElementoCatalogo(tipo, valor, padre, inputElement, listElement) 
     catalogos.departamentos.push(valor);
     catalogos.departamentos.sort();
   } else if (tipo === 'areas') {
-    if (!padre) return alert('Seleccione un departamento para el área.');
+    if (!padre) return alert('Seleccione un departamento.');
     valor = capitalizarPalabras(valor);
     if (catalogos.areas.some(a => a.nombre === valor && a.departamento === padre)) return alert('Ya existe esa área en ese departamento.');
     catalogos.areas.push({ nombre: valor, departamento: padre });
@@ -390,10 +348,7 @@ function agregarElementoCatalogo(tipo, valor, padre, inputElement, listElement) 
   if (tipo === 'modelos') modeloMarcaSelect.value = '';
   renderizarListaCatalogo(tipo, listElement);
   poblarDatalists();
-  if (currentTab === 'configuracion') {
-    renderizarListasConfiguracion();
-    renderTablaUsuariosConfig();
-  }
+  if (currentTab === 'configuracion') { renderizarListasConfiguracion(); renderTablaUsuariosConfig(); }
 }
 
 function eliminarElementoCatalogo(tipo, valor, padre, listElement) {
@@ -415,306 +370,124 @@ function eliminarElementoCatalogo(tipo, valor, padre, listElement) {
   guardarCatalogosEnStorage();
   renderizarListaCatalogo(tipo, listElement);
   poblarDatalists();
-  if (currentTab === 'configuracion') {
-    renderizarListasConfiguracion();
-    renderTablaUsuariosConfig();
-  }
+  if (currentTab === 'configuracion') { renderizarListasConfiguracion(); renderTablaUsuariosConfig(); }
 }
 
 function renderizarListaCatalogo(tipo, listElement) {
   let html = '';
-  if (tipo === 'tiposEquipo') {
-    html = catalogos.tiposEquipo.map(t => `
-      <li class="catalog-item">
-        <span>${escapeHtml(t)}</span>
-        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('tiposEquipo','${escapeHtml(t)}', null, document.getElementById('tipo-equipo-list'))">✕</button>
-      </li>`).join('');
-  } else if (tipo === 'marcas') {
-    html = catalogos.marcas.map(m => `
-      <li class="catalog-item">
-        <span>${escapeHtml(m.nombre)} <small>(${escapeHtml(m.tipoEquipo)})</small></span>
-        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('marcas','${escapeHtml(m.nombre)}','${escapeHtml(m.tipoEquipo)}', document.getElementById('marca-catalogo-list'))">✕</button>
-      </li>`).join('');
-  } else if (tipo === 'modelos') {
-    html = catalogos.modelos.map(m => `
-      <li class="catalog-item">
-        <span>${escapeHtml(m.nombre)} <small>(${escapeHtml(m.marca)})</small></span>
-        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('modelos','${escapeHtml(m.nombre)}','${escapeHtml(m.marca)}', document.getElementById('modelo-catalogo-list'))">✕</button>
-      </li>`).join('');
-  } else if (tipo === 'departamentos') {
-    html = catalogos.departamentos.map(d => `
-      <li class="catalog-item">
-        <span>${escapeHtml(d)}</span>
-        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('departamentos','${escapeHtml(d)}', null, document.getElementById('dep-catalogo-list'))">✕</button>
-      </li>`).join('');
-  } else if (tipo === 'areas') {
-    html = catalogos.areas.map(a => `
-      <li class="catalog-item">
-        <span>${escapeHtml(a.nombre)} (${escapeHtml(a.departamento)})</span>
-        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('areas','${escapeHtml(a.nombre)}','${escapeHtml(a.departamento)}', document.getElementById('area-catalogo-list'))">✕</button>
-      </li>`).join('');
-  }
+  if (tipo === 'tiposEquipo') html = catalogos.tiposEquipo.map(t => `<li class="catalog-item"><span>${escapeHtml(t)}</span><button class="btn-remove-item" onclick="eliminarElementoCatalogo('tiposEquipo','${escapeHtml(t)}', null, document.getElementById('tipo-equipo-list'))">✕</button></li>`).join('');
+  else if (tipo === 'marcas') html = catalogos.marcas.map(m => `<li class="catalog-item"><span>${escapeHtml(m.nombre)} <small>(${escapeHtml(m.tipoEquipo)})</small></span><button class="btn-remove-item" onclick="eliminarElementoCatalogo('marcas','${escapeHtml(m.nombre)}','${escapeHtml(m.tipoEquipo)}', document.getElementById('marca-catalogo-list'))">✕</button></li>`).join('');
+  else if (tipo === 'modelos') html = catalogos.modelos.map(m => `<li class="catalog-item"><span>${escapeHtml(m.nombre)} <small>(${escapeHtml(m.marca)})</small></span><button class="btn-remove-item" onclick="eliminarElementoCatalogo('modelos','${escapeHtml(m.nombre)}','${escapeHtml(m.marca)}', document.getElementById('modelo-catalogo-list'))">✕</button></li>`).join('');
+  else if (tipo === 'departamentos') html = catalogos.departamentos.map(d => `<li class="catalog-item"><span>${escapeHtml(d)}</span><button class="btn-remove-item" onclick="eliminarElementoCatalogo('departamentos','${escapeHtml(d)}', null, document.getElementById('dep-catalogo-list'))">✕</button></li>`).join('');
+  else if (tipo === 'areas') html = catalogos.areas.map(a => `<li class="catalog-item"><span>${escapeHtml(a.nombre)} (${escapeHtml(a.departamento)})</span><button class="btn-remove-item" onclick="eliminarElementoCatalogo('areas','${escapeHtml(a.nombre)}','${escapeHtml(a.departamento)}', document.getElementById('area-catalogo-list'))">✕</button></li>`).join('');
   listElement.innerHTML = html || '<p class="placeholder-text">No hay elementos.</p>';
 }
 
-// ==================== POBLAR DATALISTS (nueva función) ====================
+// ==================== DATALISTS ====================
 function poblarDatalists() {
-  // Tipos de equipo
   datalistTipos.innerHTML = catalogos.tiposEquipo.map(t => `<option value="${escapeHtml(t)}">`).join('');
-  // Marcas y modelos se actualizan según dependencias; inicialmente vacíos
   datalistMarcas.innerHTML = '';
   datalistModelos.innerHTML = '';
-  // Departamentos
   datalistDepartamentos.innerHTML = catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">`).join('');
-  // Áreas se actualiza según departamento escrito
   actualizarDatalistAreas();
-  // También actualizar los select de configuración que aún usan <select>
-  marcaTipoSelect.innerHTML = '<option value="">Seleccione tipo de equipo</option>' +
-    catalogos.tiposEquipo.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-  modeloMarcaSelect.innerHTML = '<option value="">Seleccione marca</option>' +
-    catalogos.marcas.map(m => `<option value="${escapeHtml(m.nombre)}">${escapeHtml(m.nombre)} (${escapeHtml(m.tipoEquipo)})</option>`).join('');
-  areaDeptoSelect.innerHTML = '<option value="">Seleccione departamento</option>' +
-    catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+  marcaTipoSelect.innerHTML = '<option value="">Seleccione tipo de equipo</option>' + catalogos.tiposEquipo.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  modeloMarcaSelect.innerHTML = '<option value="">Seleccione marca</option>' + catalogos.marcas.map(m => `<option value="${escapeHtml(m.nombre)}">${escapeHtml(m.nombre)} (${escapeHtml(m.tipoEquipo)})</option>`).join('');
+  areaDeptoSelect.innerHTML = '<option value="">Seleccione departamento</option>' + catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
 }
 
 function actualizarDatalistAreas() {
   const depto = inputDepartamento.value.trim();
-  if (!depto) {
-    datalistAreas.innerHTML = catalogos.areas.map(a => `<option value="${escapeHtml(a.nombre)}">`).join('');
-  } else {
-    const filtradas = catalogos.areas.filter(a => a.departamento.toLowerCase() === depto.toLowerCase());
-    datalistAreas.innerHTML = filtradas.map(a => `<option value="${escapeHtml(a.nombre)}">`).join('');
-  }
+  datalistAreas.innerHTML = !depto ? catalogos.areas.map(a => `<option value="${escapeHtml(a.nombre)}">`).join('') : catalogos.areas.filter(a => a.departamento.toLowerCase() === depto.toLowerCase()).map(a => `<option value="${escapeHtml(a.nombre)}">`).join('');
 }
 
 function actualizarDatalistMarcas() {
   const tipo = inputTipoEquipo.value.trim();
   inputMarcaEquipo.disabled = !tipo;
-  if (!tipo) {
-    datalistMarcas.innerHTML = '';
-    inputMarcaEquipo.value = '';
-    inputModeloEquipo.disabled = true;
-    datalistModelos.innerHTML = '';
-    inputModeloEquipo.value = '';
-    return;
-  }
-  inputMarcaEquipo.disabled = false;
-  const filtradas = catalogos.marcas.filter(m => m.tipoEquipo.toLowerCase() === tipo.toLowerCase());
-  datalistMarcas.innerHTML = filtradas.map(m => `<option value="${escapeHtml(m.nombre)}">`).join('');
-  // Reset modelo
+  datalistMarcas.innerHTML = !tipo ? '' : catalogos.marcas.filter(m => m.tipoEquipo.toLowerCase() === tipo.toLowerCase()).map(m => `<option value="${escapeHtml(m.nombre)}">`).join('');
   inputModeloEquipo.disabled = true;
   datalistModelos.innerHTML = '';
-  inputModeloEquipo.value = '';
 }
 
 function actualizarDatalistModelos() {
   const marca = inputMarcaEquipo.value.trim();
   inputModeloEquipo.disabled = !marca;
-  if (!marca) {
-    datalistModelos.innerHTML = '';
-    inputModeloEquipo.value = '';
-    return;
-  }
-  inputModeloEquipo.disabled = false;
-  const filtrados = catalogos.modelos.filter(m => m.marca.toLowerCase() === marca.toLowerCase());
-  datalistModelos.innerHTML = filtrados.map(m => `<option value="${escapeHtml(m.nombre)}">`).join('');
+  datalistModelos.innerHTML = !marca ? '' : catalogos.modelos.filter(m => m.marca.toLowerCase() === marca.toLowerCase()).map(m => `<option value="${escapeHtml(m.nombre)}">`).join('');
 }
 
-// ==================== APRENDIZAJE AUTOMÁTICO AL GUARDAR ====================
+// ==================== APRENDIZAJE AUTOMÁTICO ====================
 function aprenderCatalogos(estacion) {
   let huboCambios = false;
-  // Departamento
   const depto = capitalizarPalabras(estacion.departamento.trim());
-  if (depto && !catalogos.departamentos.includes(depto)) {
-    catalogos.departamentos.push(depto);
-    catalogos.departamentos.sort();
-    huboCambios = true;
-  }
-  // Área
+  if (depto && !catalogos.departamentos.includes(depto)) { catalogos.departamentos.push(depto); catalogos.departamentos.sort(); huboCambios = true; }
   const area = capitalizarPalabras(estacion.area.trim());
-  if (area && depto && !catalogos.areas.some(a => a.nombre === area && a.departamento === depto)) {
-    catalogos.areas.push({ nombre: area, departamento: depto });
-    catalogos.areas.sort((a,b) => a.nombre.localeCompare(b.nombre));
-    huboCambios = true;
-  }
-  // Equipos
+  if (area && depto && !catalogos.areas.some(a => a.nombre === area && a.departamento === depto)) { catalogos.areas.push({ nombre: area, departamento: depto }); catalogos.areas.sort((a,b) => a.nombre.localeCompare(b.nombre)); huboCambios = true; }
   estacion.equipos.forEach(eq => {
     const tipo = capitalizarPalabras(eq.tipo.trim());
-    if (tipo && !catalogos.tiposEquipo.includes(tipo)) {
-      catalogos.tiposEquipo.push(tipo);
-      catalogos.tiposEquipo.sort();
-      huboCambios = true;
-    }
+    if (tipo && !catalogos.tiposEquipo.includes(tipo)) { catalogos.tiposEquipo.push(tipo); catalogos.tiposEquipo.sort(); huboCambios = true; }
     const marca = eq.marca.trim().toUpperCase();
-    if (marca && tipo && !catalogos.marcas.some(m => m.nombre === marca && m.tipoEquipo === tipo)) {
-      catalogos.marcas.push({ nombre: marca, tipoEquipo: tipo });
-      catalogos.marcas.sort((a,b) => a.nombre.localeCompare(b.nombre));
-      huboCambios = true;
-    }
+    if (marca && tipo && !catalogos.marcas.some(m => m.nombre === marca && m.tipoEquipo === tipo)) { catalogos.marcas.push({ nombre: marca, tipoEquipo: tipo }); catalogos.marcas.sort((a,b) => a.nombre.localeCompare(b.nombre)); huboCambios = true; }
     const modelo = eq.modelo.trim().toUpperCase();
-    if (modelo && marca && !catalogos.modelos.some(m => m.nombre === modelo && m.marca === marca)) {
-      catalogos.modelos.push({ nombre: modelo, marca: marca });
-      catalogos.modelos.sort((a,b) => a.nombre.localeCompare(b.nombre));
-      huboCambios = true;
-    }
+    if (modelo && marca && !catalogos.modelos.some(m => m.nombre === modelo && m.marca === marca)) { catalogos.modelos.push({ nombre: modelo, marca: marca }); catalogos.modelos.sort((a,b) => a.nombre.localeCompare(b.nombre)); huboCambios = true; }
   });
-
-  if (huboCambios) {
-    guardarCatalogosEnStorage();
-    poblarDatalists();
-    if (currentTab === 'configuracion') {
-      renderizarListasConfiguracion();
-      renderTablaUsuariosConfig();
-    }
-  }
+  if (huboCambios) { guardarCatalogosEnStorage(); poblarDatalists(); if (currentTab === 'configuracion') { renderizarListasConfiguracion(); renderTablaUsuariosConfig(); } }
 }
 
 // ==================== IMPORTACIÓN CSV ====================
 function importarCSV() {
   const file = csvFileInput.files[0];
-  if (!file) {
-    csvStatus.textContent = 'Seleccione un archivo CSV.';
-    csvStatus.className = 'status-message error';
-    return;
-  }
-
+  if (!file) { csvStatus.textContent = 'Seleccione un archivo CSV.'; csvStatus.className = 'status-message error'; return; }
   const tipo = csvTipoImport.value;
-  csvStatus.textContent = 'Procesando...';
-  csvStatus.className = 'status-message loading';
-
+  csvStatus.textContent = 'Procesando...'; csvStatus.className = 'status-message loading';
   const reader = new FileReader();
-
   reader.onload = function(e) {
     try {
       const text = e.target.result;
       const lineas = text.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lineas.length < 2) throw new Error('El archivo está vacío o no tiene datos.');
-
       const nuevosItems = [];
-
       for (let i = 1; i < lineas.length; i++) {
         const campos = parsearLineaCSV(lineas[i]);
         if (campos.length === 0) continue;
-
-        if (tipo === 'equipos') {
-          if (campos.length < 3) continue;
-          const tipoEq = capitalizarPalabras(campos[0].trim());
-          const marca = campos[1].trim().toUpperCase();
-          const modelo = campos[2].trim().toUpperCase();
-          if (tipoEq && marca && modelo) {
-            nuevosItems.push({ tipo: tipoEq, marca, modelo });
-          }
-        } else if (tipo === 'ubicaciones') {
-          if (campos.length < 2) continue;
-          const depto = capitalizarPalabras(campos[0].trim());
-          const area = capitalizarPalabras(campos[1].trim());
-          if (depto && area) {
-            nuevosItems.push({ depto, area });
-          }
+        if (tipo === 'equipos' && campos.length >= 3) {
+          const tipoEq = capitalizarPalabras(campos[0].trim()), marca = campos[1].trim().toUpperCase(), modelo = campos[2].trim().toUpperCase();
+          if (tipoEq && marca && modelo) nuevosItems.push({ tipo: tipoEq, marca, modelo });
+        } else if (tipo === 'ubicaciones' && campos.length >= 2) {
+          const depto = capitalizarPalabras(campos[0].trim()), area = capitalizarPalabras(campos[1].trim());
+          if (depto && area) nuevosItems.push({ depto, area });
         }
       }
-
       if (tipo === 'equipos') {
-        const tiposSet = new Set(catalogos.tiposEquipo);
-        const marcasMap = new Map(catalogos.marcas.map(m => [`${m.nombre}|${m.tipoEquipo}`, m]));
-        const modelosMap = new Map(catalogos.modelos.map(m => [`${m.nombre}|${m.marca}`, m]));
-
+        const tiposSet = new Set(catalogos.tiposEquipo), marcasMap = new Map(catalogos.marcas.map(m => [`${m.nombre}|${m.tipoEquipo}`, m])), modelosMap = new Map(catalogos.modelos.map(m => [`${m.nombre}|${m.marca}`, m]));
         nuevosItems.forEach(item => {
-          if (!tiposSet.has(item.tipo)) {
-            catalogos.tiposEquipo.push(item.tipo);
-            tiposSet.add(item.tipo);
-          }
-          const marcaKey = `${item.marca}|${item.tipo}`;
-          if (!marcasMap.has(marcaKey)) {
-            const nuevaMarca = { nombre: item.marca, tipoEquipo: item.tipo };
-            catalogos.marcas.push(nuevaMarca);
-            marcasMap.set(marcaKey, nuevaMarca);
-          }
-          const modeloKey = `${item.modelo}|${item.marca}`;
-          if (!modelosMap.has(modeloKey)) {
-            catalogos.modelos.push({ nombre: item.modelo, marca: item.marca });
-            modelosMap.set(modeloKey, { nombre: item.modelo, marca: item.marca });
-          }
+          if (!tiposSet.has(item.tipo)) { catalogos.tiposEquipo.push(item.tipo); tiposSet.add(item.tipo); }
+          const mk = `${item.marca}|${item.tipo}`; if (!marcasMap.has(mk)) { const nm = { nombre: item.marca, tipoEquipo: item.tipo }; catalogos.marcas.push(nm); marcasMap.set(mk, nm); }
+          const mdk = `${item.modelo}|${item.marca}`; if (!modelosMap.has(mdk)) { catalogos.modelos.push({ nombre: item.modelo, marca: item.marca }); modelosMap.set(mdk, { nombre: item.modelo, marca: item.marca }); }
         });
-        catalogos.tiposEquipo.sort();
-        catalogos.marcas.sort((a,b) => a.nombre.localeCompare(b.nombre));
-        catalogos.modelos.sort((a,b) => a.nombre.localeCompare(b.nombre));
+        catalogos.tiposEquipo.sort(); catalogos.marcas.sort((a,b) => a.nombre.localeCompare(b.nombre)); catalogos.modelos.sort((a,b) => a.nombre.localeCompare(b.nombre));
       } else if (tipo === 'ubicaciones') {
-        const deptosSet = new Set(catalogos.departamentos);
-        const areasMap = new Map(catalogos.areas.map(a => [`${a.nombre}|${a.departamento}`, a]));
-
+        const deptosSet = new Set(catalogos.departamentos), areasMap = new Map(catalogos.areas.map(a => [`${a.nombre}|${a.departamento}`, a]));
         nuevosItems.forEach(item => {
-          if (!deptosSet.has(item.depto)) {
-            catalogos.departamentos.push(item.depto);
-            deptosSet.add(item.depto);
-          }
-          const areaKey = `${item.area}|${item.depto}`;
-          if (!areasMap.has(areaKey)) {
-            catalogos.areas.push({ nombre: item.area, departamento: item.depto });
-            areasMap.set(areaKey, { nombre: item.area, departamento: item.depto });
-          }
+          if (!deptosSet.has(item.depto)) { catalogos.departamentos.push(item.depto); deptosSet.add(item.depto); }
+          const ak = `${item.area}|${item.depto}`; if (!areasMap.has(ak)) { catalogos.areas.push({ nombre: item.area, departamento: item.depto }); areasMap.set(ak, { nombre: item.area, departamento: item.depto }); }
         });
-        catalogos.departamentos.sort();
-        catalogos.areas.sort((a,b) => a.nombre.localeCompare(b.nombre));
+        catalogos.departamentos.sort(); catalogos.areas.sort((a,b) => a.nombre.localeCompare(b.nombre));
       }
-
-      guardarCatalogosEnStorage();
-      poblarDatalists();
-      if (currentTab === 'configuracion') {
-        renderizarListasConfiguracion();
-        renderTablaUsuariosConfig();
-      }
-
-      csvFileInput.value = '';
-      csvStatus.textContent = `✅ Importados ${nuevosItems.length} registros sin duplicados.`;
-      csvStatus.className = 'status-message success';
+      guardarCatalogosEnStorage(); poblarDatalists();
+      if (currentTab === 'configuracion') { renderizarListasConfiguracion(); renderTablaUsuariosConfig(); }
+      csvFileInput.value = ''; csvStatus.textContent = `✅ Importados ${nuevosItems.length} registros sin duplicados.`; csvStatus.className = 'status-message success';
       setTimeout(() => { csvStatus.textContent = ''; }, 4000);
-
-    } catch (error) {
-      console.error(error);
-      csvStatus.textContent = '';
-      csvStatus.className = '';
-      alert('Error al procesar el CSV:\n' + error.message);
-    }
+    } catch (error) { console.error(error); csvStatus.textContent = ''; csvStatus.className = ''; alert('Error al procesar el CSV:\n' + error.message); }
   };
-
-  reader.onerror = function() {
-    csvStatus.textContent = '';
-    csvStatus.className = '';
-    alert('Error al leer el archivo.');
-  };
-
+  reader.onerror = () => { csvStatus.textContent = ''; csvStatus.className = ''; alert('Error al leer el archivo.'); };
   reader.readAsText(file, 'UTF-8');
 }
 
 function parsearLineaCSV(linea) {
-  const resultado = [];
-  let campo = '';
-  let dentroDeComillas = false;
-
+  const resultado = []; let campo = '', dentroDeComillas = false;
   for (let i = 0; i < linea.length; i++) {
-    const caracter = linea[i];
-    if (dentroDeComillas) {
-      if (caracter === '"') {
-        if (i + 1 < linea.length && linea[i + 1] === '"') {
-          campo += '"';
-          i++;
-        } else {
-          dentroDeComillas = false;
-        }
-      } else {
-        campo += caracter;
-      }
-    } else {
-      if (caracter === '"') {
-        dentroDeComillas = true;
-      } else if (caracter === ',') {
-        resultado.push(campo.trim());
-        campo = '';
-      } else {
-        campo += caracter;
-      }
-    }
+    const c = linea[i];
+    if (dentroDeComillas) { if (c === '"') { if (i + 1 < linea.length && linea[i + 1] === '"') { campo += '"'; i++; } else dentroDeComillas = false; } else campo += c; }
+    else { if (c === '"') dentroDeComillas = true; else if (c === ',') { resultado.push(campo.trim()); campo = ''; } else campo += c; }
   }
   resultado.push(campo.trim());
   return resultado;
@@ -722,36 +495,21 @@ function parsearLineaCSV(linea) {
 
 // ==================== PESTAÑAS ====================
 function setupTabs() {
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.dataset.tab;
-      if (tab === 'configuracion' && (!currentUser || currentUser.rol !== 'admin')) {
-        return;
-      }
-      switchTab(tab);
-    });
-  });
+  tabBtns.forEach(btn => btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    if (tab === 'configuracion' && (!currentUser || currentUser.rol !== 'admin')) return;
+    switchTab(tab);
+  }));
 }
 
 function switchTab(tab) {
   currentTab = tab;
   tabBtns.forEach(b => b.classList.remove('active'));
-  const activeBtn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
-  if (activeBtn) activeBtn.classList.add('active');
+  document.querySelector(`.tab-btn[data-tab="${tab}"]`)?.classList.add('active');
   tabContents.forEach(c => c.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
-
-  if (tab === 'dashboard' || tab === 'reportes') {
-    filtersBar.style.display = 'block';
-  } else {
-    filtersBar.style.display = 'none';
-  }
-
-  if (tab === 'configuracion') {
-    renderizarListasConfiguracion();
-    renderTablaUsuariosConfig();
-  }
-
+  filtersBar.style.display = (tab === 'dashboard' || tab === 'reportes') ? 'block' : 'none';
+  if (tab === 'configuracion') { renderizarListasConfiguracion(); renderTablaUsuariosConfig(); }
   actualizarVista();
 }
 
@@ -764,426 +522,228 @@ function renderizarListasConfiguracion() {
   poblarDatalists();
 }
 
-// ==================== FILTROS (con debounce) ====================
+// ==================== FILTROS ====================
 let debounceTimer;
 function setupFilters() {
-  const debounceFilter = (callback) => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(callback, 200);
-  };
-
-  filterPiso.addEventListener('input', () => {
-    filters.piso = filterPiso.value.trim().toLowerCase();
-    debounceFilter(actualizarVista);
-  });
-  filterDepartamento.addEventListener('input', () => {
-    filters.departamento = filterDepartamento.value.trim().toLowerCase();
-    debounceFilter(actualizarVista);
-  });
-  filterArea.addEventListener('input', () => {
-    filters.area = filterArea.value.trim().toLowerCase();
-    debounceFilter(actualizarVista);
-  });
-  filterResponsable.addEventListener('input', () => {
-    filters.responsable = filterResponsable.value.trim().toLowerCase();
-    debounceFilter(actualizarVista);
-  });
+  const debounce = (cb) => { clearTimeout(debounceTimer); debounceTimer = setTimeout(cb, 200); };
+  filterPiso.addEventListener('input', () => { filters.piso = filterPiso.value.trim().toLowerCase(); debounce(actualizarVista); });
+  filterDepartamento.addEventListener('input', () => { filters.departamento = filterDepartamento.value.trim().toLowerCase(); debounce(actualizarVista); });
+  filterArea.addEventListener('input', () => { filters.area = filterArea.value.trim().toLowerCase(); debounce(actualizarVista); });
+  filterResponsable.addEventListener('input', () => { filters.responsable = filterResponsable.value.trim().toLowerCase(); debounce(actualizarVista); });
   btnClearFilters.addEventListener('click', limpiarFiltros);
 }
 
 function limpiarFiltros() {
-  filterPiso.value = '';
-  filterDepartamento.value = '';
-  filterArea.value = '';
-  filterResponsable.value = '';
+  filterPiso.value = ''; filterDepartamento.value = ''; filterArea.value = ''; filterResponsable.value = '';
   filters = { piso: '', departamento: '', area: '', responsable: '' };
   actualizarVista();
 }
 
 // ==================== FETCH ====================
 async function fetchGetRegistros() {
-  const response = await fetch(API_URL);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const data = await response.json();
-  if (data.error) throw new Error(data.error);
-  return Array.isArray(data) ? data : [];
+  const r = await fetch(API_URL);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const d = await r.json();
+  if (d.error) throw new Error(d.error);
+  return Array.isArray(d) ? d : [];
 }
 
 async function fetchPost(payload) {
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    redirect: 'follow',
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const data = await response.json();
-  if (data.error) throw new Error(data.error);
-  return data;
+  const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const d = await r.json();
+  if (d.error) throw new Error(d.error);
+  return d;
 }
 
-// ==================== CARGA DE DATOS ====================
 async function cargarRegistros() {
   try {
     registros = await fetchGetRegistros();
     equiposCache.clear();
     actualizarFiltrosDatalist();
     actualizarVista();
-  } catch (error) {
-    console.error(error);
-    alert('Error de conexión. Verifica tu red o la URL.');
-  }
+  } catch (e) { console.error(e); alert('Error de conexión.'); }
 }
 
-// ==================== UTILIDADES DE TEXTO ====================
-function capitalizarPalabras(str) {
-  return str.replace(/\b\w/g, char => char.toUpperCase());
-}
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+// ==================== UTILIDADES ====================
+function capitalizarPalabras(s) { return s.replace(/\b\w/g, c => c.toUpperCase()); }
+function escapeHtml(s) { return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;') : ''; }
 
 // ==================== CRUD ESTACIONES ====================
 async function guardarEstacion() {
   if (!formEdificio.value) return mostrarStatus('error', 'Selecciona un edificio.');
   const depto = inputDepartamento.value.trim();
   if (!depto) return mostrarStatus('error', 'El departamento es obligatorio.');
-  if (!formAsignado.value.trim()) return mostrarStatus('error', 'El campo "A quién fue asignado" es obligatorio.');
+  if (!formAsignado.value.trim()) return mostrarStatus('error', 'El campo "Asignado" es obligatorio.');
   if (equiposTemporales.length === 0) return mostrarStatus('error', 'Agrega al menos un equipo.');
 
   const area = inputArea.value.trim();
-
   const nuevaEstacion = {
-    edificio: formEdificio.value,
-    piso: formPiso.value.trim(),
-    departamento: capitalizarPalabras(depto),
-    area: area ? capitalizarPalabras(area) : '',
-    asignado: capitalizarPalabras(formAsignado.value.trim()),
-    cargo: capitalizarPalabras(formCargo.value.trim()),
+    edificio: formEdificio.value, piso: formPiso.value.trim(),
+    departamento: capitalizarPalabras(depto), area: area ? capitalizarPalabras(area) : '',
+    asignado: capitalizarPalabras(formAsignado.value.trim()), cargo: capitalizarPalabras(formCargo.value.trim()),
     equipos: [...equiposTemporales]
   };
 
-  // Aprender automáticamente los nuevos valores
   aprenderCatalogos(nuevaEstacion);
 
-  const tempId = 'temp_' + Date.now();
-  const tempFecha = new Date().toLocaleString('es-DO');
-  const registroOptimista = {
-    id: tempId,
-    ...nuevaEstacion,
-    equipos: JSON.stringify(nuevaEstacion.equipos),
-    fecha: tempFecha
-  };
+  const tempId = 'temp_' + Date.now(), tempFecha = new Date().toLocaleString('es-DO');
+  const registroOptimista = { id: tempId, ...nuevaEstacion, equipos: JSON.stringify(nuevaEstacion.equipos), fecha: tempFecha };
 
   registros.unshift(registroOptimista);
   equiposCache.set(tempId, nuevaEstacion.equipos);
   limpiarSeccionUsuarioYEquipos();
-  actualizarFiltrosDatalist();
-  actualizarVista();
+  actualizarFiltrosDatalist(); actualizarVista();
   mostrarStatus('loading', 'Guardando...');
 
   try {
-    const resultado = await fetchPost({ action: 'save', data: nuevaEstacion });
-    const index = registros.findIndex(r => r.id === tempId);
-    if (index !== -1 && resultado.id) {
-      registros[index].id = resultado.id;
-      registros[index].fecha = resultado.fecha || tempFecha;
-      equiposCache.set(resultado.id, nuevaEstacion.equipos);
-      equiposCache.delete(tempId);
-    }
-    actualizarFiltrosDatalist();
-    actualizarVista();
+    const res = await fetchPost({ action: 'save', data: nuevaEstacion });
+    const idx = registros.findIndex(r => r.id === tempId);
+    if (idx !== -1 && res.id) { registros[idx].id = res.id; registros[idx].fecha = res.fecha || tempFecha; equiposCache.set(res.id, nuevaEstacion.equipos); equiposCache.delete(tempId); }
+    actualizarFiltrosDatalist(); actualizarVista();
     mostrarStatus('success', '✅ Estación guardada exitosamente.');
     setTimeout(() => limpiarStatus(), 3000);
-  } catch (error) {
-    registros = registros.filter(r => r.id !== tempId);
-    equiposCache.delete(tempId);
-    actualizarFiltrosDatalist();
-    actualizarVista();
-    mostrarStatus('error', 'Error al guardar. Intenta de nuevo.');
+  } catch (e) {
+    registros = registros.filter(r => r.id !== tempId); equiposCache.delete(tempId);
+    actualizarFiltrosDatalist(); actualizarVista();
+    mostrarStatus('error', 'Error al guardar.');
   }
 }
 
 async function eliminarEstacion(id) {
-  if (!currentUser || !currentUser.permisos.eliminar) return alert('No tiene permiso para eliminar.');
-  const registroEliminado = registros.find(r => r.id === id);
+  if (!currentUser?.permisos.eliminar) return alert('Sin permiso.');
+  const eliminado = registros.find(r => r.id === id);
   registros = registros.filter(r => r.id !== id);
   equiposCache.delete(id);
-  actualizarFiltrosDatalist();
-  actualizarVista();
-  try {
-    await fetchPost({ action: 'delete', id });
-  } catch (error) {
-    if (registroEliminado) {
-      registros.unshift(registroEliminado);
-      equiposCache.set(registroEliminado.id, parseEquipos(registroEliminado.equipos));
-    }
-    actualizarFiltrosDatalist();
-    actualizarVista();
-    alert('Error al eliminar. Se revirtió el cambio.');
+  actualizarFiltrosDatalist(); actualizarVista();
+  try { await fetchPost({ action: 'delete', id }); } catch {
+    if (eliminado) { registros.unshift(eliminado); equiposCache.set(eliminado.id, parseEquipos(eliminado.equipos)); }
+    actualizarFiltrosDatalist(); actualizarVista();
+    alert('Error al eliminar.');
   }
 }
 
 // ==================== EQUIPOS TEMPORALES ====================
 function agregarEquipoTemporal() {
   const tipo = inputTipoEquipo.value.trim();
-  if (!tipo) return alert('Selecciona o escribe el tipo de equipo.');
-
-  const equipo = {
-    tipo: tipo,
-    marca: inputMarcaEquipo.value.trim(),
-    modelo: inputModeloEquipo.value.trim(),
-    serie: serieEquipo.value.trim().toUpperCase(),
-    activo: activoEquipo.value.trim().toUpperCase()
-  };
-
-  equiposTemporales.push(equipo);
+  if (!tipo) return alert('Escribe o selecciona el tipo de equipo.');
+  equiposTemporales.push({
+    tipo, marca: inputMarcaEquipo.value.trim(), modelo: inputModeloEquipo.value.trim(),
+    serie: serieEquipo.value.trim().toUpperCase(), activo: activoEquipo.value.trim().toUpperCase()
+  });
   renderEquiposTemporales();
   limpiarCamposEquipo();
   inputTipoEquipo.focus();
 }
 
-function eliminarEquipoTemporal(index) {
-  equiposTemporales.splice(index, 1);
-  renderEquiposTemporales();
-}
+function eliminarEquipoTemporal(i) { equiposTemporales.splice(i,1); renderEquiposTemporales(); }
 
 function limpiarCamposEquipo() {
-  inputTipoEquipo.value = '';
-  inputMarcaEquipo.value = '';
-  inputMarcaEquipo.disabled = true;
-  inputModeloEquipo.value = '';
-  inputModeloEquipo.disabled = true;
-  serieEquipo.value = '';
-  activoEquipo.value = '';
-  datalistMarcas.innerHTML = '';
-  datalistModelos.innerHTML = '';
+  inputTipoEquipo.value = ''; inputMarcaEquipo.value = ''; inputMarcaEquipo.disabled = true;
+  inputModeloEquipo.value = ''; inputModeloEquipo.disabled = true;
+  serieEquipo.value = ''; activoEquipo.value = '';
+  datalistMarcas.innerHTML = ''; datalistModelos.innerHTML = '';
 }
 
 function renderEquiposTemporales() {
-  if (equiposTemporales.length === 0) {
-    equiposTempList.innerHTML = '<p class="placeholder-text">No hay equipos agregados aún.</p>';
-    return;
-  }
-  equiposTempList.innerHTML = equiposTemporales.map((eq, i) => `
-    <span class="equipo-tag">
-      <span class="equipo-info">
-        <strong>${escapeHtml(eq.tipo)}</strong>
-        ${eq.marca ? ` | Marca: ${escapeHtml(eq.marca)}` : ''}
-        ${eq.modelo ? ` | Mod: ${escapeHtml(eq.modelo)}` : ''}
-        ${eq.serie ? ` | S/N: ${escapeHtml(eq.serie)}` : ''}
-        ${eq.activo ? ` | Act: ${escapeHtml(eq.activo)}` : ''}
-      </span>
-      <button class="btn-remove-equipo" onclick="eliminarEquipoTemporal(${i})">&times;</button>
-    </span>
-  `).join('');
+  equiposTempList.innerHTML = equiposTemporales.length === 0 ? '<p class="placeholder-text">No hay equipos agregados aún.</p>' :
+    equiposTemporales.map((eq,i) => `<span class="equipo-tag"><span class="equipo-info"><strong>${escapeHtml(eq.tipo)}</strong>${eq.marca?` | Marca: ${escapeHtml(eq.marca)}`:''}${eq.modelo?` | Mod: ${escapeHtml(eq.modelo)}`:''}${eq.serie?` | S/N: ${escapeHtml(eq.serie)}`:''}${eq.activo?` | Act: ${escapeHtml(eq.activo)}`:''}</span><button class="btn-remove-equipo" onclick="eliminarEquipoTemporal(${i})">&times;</button></span>`).join('');
 }
 
 function limpiarSeccionUsuarioYEquipos() {
-  formAsignado.value = '';
-  formCargo.value = '';
-  equiposTemporales = [];
-  renderEquiposTemporales();
-  limpiarCamposEquipo();
-  limpiarStatus();
+  formAsignado.value = ''; formCargo.value = '';
+  equiposTemporales = []; renderEquiposTemporales();
+  limpiarCamposEquipo(); limpiarStatus();
 }
 
 function limpiarFormulario() {
-  formEdificio.value = '';
-  formPiso.value = '';
-  inputDepartamento.value = '';
-  inputArea.value = '';
-  formAsignado.value = '';
-  formCargo.value = '';
-  equiposTemporales = [];
-  renderEquiposTemporales();
-  limpiarCamposEquipo();
-  limpiarStatus();
-  poblarDatalists();
+  formEdificio.value = ''; formPiso.value = ''; inputDepartamento.value = ''; inputArea.value = '';
+  formAsignado.value = ''; formCargo.value = ''; equiposTemporales = []; renderEquiposTemporales(); limpiarCamposEquipo(); limpiarStatus(); poblarDatalists();
 }
 
-function mostrarStatus(tipo, msg) {
-  formStatus.textContent = msg;
-  formStatus.className = `status-message ${tipo}`;
-}
+function mostrarStatus(t, m) { formStatus.textContent = m; formStatus.className = `status-message ${t}`; }
 function limpiarStatus() { formStatus.textContent = ''; formStatus.className = 'status-message'; }
 
-// ==================== RENDERIZADO DE VISTAS ====================
+// ==================== RENDER ====================
 function actualizarVista() {
   if (currentTab === 'registro' || currentTab === 'configuracion') return;
   const filtrados = aplicarFiltros(registros);
-  if (currentTab === 'dashboard') {
-    renderStats(filtrados);
-    renderTable(dashboardTableContainer, filtrados, true);
-  } else if (currentTab === 'reportes') {
-    renderTable(reportesTableContainer, filtrados, false);
-  }
+  if (currentTab === 'dashboard') { renderStats(filtrados); renderTable(dashboardTableContainer, filtrados, true); }
+  else if (currentTab === 'reportes') renderTable(reportesTableContainer, filtrados, false);
 }
 
 function aplicarFiltros(data) {
-  return data.filter(r => {
-    const matchPiso = !filters.piso || (r.piso || '').toLowerCase().includes(filters.piso);
-    const matchDepto = !filters.departamento || (r.departamento || '').toLowerCase().includes(filters.departamento);
-    const matchArea = !filters.area || (r.area || '').toLowerCase().includes(filters.area);
-    const respText = ((r.asignado || '') + ' ' + (r.cargo || '')).toLowerCase();
-    const matchResp = !filters.responsable || respText.includes(filters.responsable);
-    return matchPiso && matchDepto && matchArea && matchResp;
-  });
+  return data.filter(r => 
+    (!filters.piso || (r.piso||'').toLowerCase().includes(filters.piso)) &&
+    (!filters.departamento || (r.departamento||'').toLowerCase().includes(filters.departamento)) &&
+    (!filters.area || (r.area||'').toLowerCase().includes(filters.area)) &&
+    (!filters.responsable || ((r.asignado||'') + ' ' + (r.cargo||'')).toLowerCase().includes(filters.responsable))
+  );
 }
 
 function actualizarFiltrosDatalist() {
-  const pisos = [...new Set(registros.map(r => r.piso).filter(Boolean))].sort();
-  const deptos = [...new Set(registros.map(r => r.departamento).filter(Boolean))].sort();
-  const areas = [...new Set(registros.map(r => r.area).filter(Boolean))].sort();
-  const resp = [...new Set(registros.map(r => `${r.asignado||''} ${r.cargo||''}`.trim()).filter(Boolean))].sort();
-
-  document.getElementById('datalist-filter-pisos').innerHTML = pisos.map(v => `<option value="${escapeHtml(v)}">`).join('');
-  document.getElementById('datalist-filter-deptos').innerHTML = deptos.map(v => `<option value="${escapeHtml(v)}">`).join('');
-  document.getElementById('datalist-filter-areas').innerHTML = areas.map(v => `<option value="${escapeHtml(v)}">`).join('');
-  document.getElementById('datalist-filter-resp').innerHTML = resp.map(v => `<option value="${escapeHtml(v)}">`).join('');
+  const vals = (fn) => [...new Set(registros.map(fn).filter(Boolean))].sort();
+  document.getElementById('datalist-filter-pisos').innerHTML = vals(r => r.piso).map(v => `<option value="${escapeHtml(v)}">`).join('');
+  document.getElementById('datalist-filter-deptos').innerHTML = vals(r => r.departamento).map(v => `<option value="${escapeHtml(v)}">`).join('');
+  document.getElementById('datalist-filter-areas').innerHTML = vals(r => r.area).map(v => `<option value="${escapeHtml(v)}">`).join('');
+  document.getElementById('datalist-filter-resp').innerHTML = vals(r => `${r.asignado||''} ${r.cargo||''}`.trim()).map(v => `<option value="${escapeHtml(v)}">`).join('');
 }
 
 function renderStats(data) {
-  const totalEstaciones = data.length;
-  const totalEquipos = data.reduce((sum, r) => sum + parseEquipos(r.equipos).length, 0);
+  const totalEq = data.reduce((s,r) => s + parseEquipos(r.equipos).length, 0);
   const tipoCount = {};
-  data.forEach(r => {
-    parseEquipos(r.equipos).forEach(eq => {
-      tipoCount[eq.tipo] = (tipoCount[eq.tipo] || 0) + 1;
-    });
-  });
-  const topTipos = Object.entries(tipoCount).sort((a,b) => b[1]-a[1]).slice(0,4);
-  statsContainer.innerHTML = `
-    <div class="stat-card"><h3>Total Estaciones</h3><div class="stat-value">${totalEstaciones}</div></div>
-    <div class="stat-card"><h3>Total Equipos</h3><div class="stat-value">${totalEquipos}</div></div>
-    ${topTipos.map(([tipo, cant]) => `
-      <div class="stat-card"><h3>${tipo}</h3><div class="stat-value">${cant}</div></div>
-    `).join('')}
-  `;
+  data.forEach(r => parseEquipos(r.equipos).forEach(eq => tipoCount[eq.tipo] = (tipoCount[eq.tipo]||0)+1));
+  const top = Object.entries(tipoCount).sort((a,b) => b[1]-a[1]).slice(0,4);
+  statsContainer.innerHTML = `<div class="stat-card"><h3>Total Estaciones</h3><div class="stat-value">${data.length}</div></div>
+    <div class="stat-card"><h3>Total Equipos</h3><div class="stat-value">${totalEq}</div></div>
+    ${top.map(([t,c]) => `<div class="stat-card"><h3>${t}</h3><div class="stat-value">${c}</div></div>`).join('')}`;
 }
 
-function renderTable(container, data, isDashboard = false) {
-  if (data.length === 0) {
-    container.innerHTML = '<p style="text-align:center;padding:20px;">No se encontraron registros.</p>';
-    return;
-  }
-  const puedeEliminar = currentUser && currentUser.permisos.eliminar;
-  let html = `
-    <table>
-      <thead>
-        <tr>
-          <th>Edificio</th><th>Piso</th><th>Depto</th><th>Área</th>
-          <th>Asignado</th><th>Cargo</th>
-          <th style="width:50px;"></th>
-          ${puedeEliminar ? '<th style="width:50px;">Acción</th>' : ''}
-        </tr>
-      </thead>
-      <tbody>
-  `;
+function renderTable(container, data, dash) {
+  if (!data.length) { container.innerHTML = '<p style="text-align:center;padding:20px;">No se encontraron registros.</p>'; return; }
+  const elim = currentUser?.permisos.eliminar;
+  let html = `<table><thead><tr><th>Edificio</th><th>Piso</th><th>Depto</th><th>Área</th><th>Asignado</th><th>Cargo</th><th style="width:50px;"></th>${elim?'<th style="width:50px;">Acción</th>':''}</tr></thead><tbody>`;
   data.forEach(r => {
-    const equipos = parseEquipos(r.equipos);
-    const rowId = r.id;
-    html += `
-      <tr class="main-row" data-id="${rowId}" onclick="toggleExpandRow('${rowId}', this)">
-        <td>${escapeHtml(r.edificio || '—')}</td>
-        <td>${escapeHtml(r.piso || '—')}</td>
-        <td>${escapeHtml(r.departamento || '—')}</td>
-        <td>${escapeHtml(r.area || '—')}</td>
-        <td>${escapeHtml(r.asignado || '—')}</td>
-        <td>${escapeHtml(r.cargo || '—')}</td>
-        <td style="text-align:center;"><span class="expand-icon" id="icon-${rowId}">▶</span></td>
-        ${puedeEliminar ? `<td><button class="btn btn-delete" onclick="event.stopPropagation(); eliminarEstacion('${rowId}')">🗑️</button></td>` : ''}
-      </tr>
-      <tr class="detail-row" id="detail-${rowId}" style="display:none;">
-        <td colspan="${puedeEliminar ? 8 : 7}">
-          <strong>Equipos Asignados:</strong>
-          <table class="sub-table">
-            <thead><tr><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Activo Fijo</th></tr></thead>
-            <tbody>
-              ${equipos.map(eq => `
-                <tr>
-                  <td>${escapeHtml(eq.tipo)}</td>
-                  <td>${escapeHtml(eq.marca || '—')}</td>
-                  <td>${escapeHtml(eq.modelo || '—')}</td>
-                  <td>${escapeHtml(eq.serie || '—')}</td>
-                  <td>${escapeHtml(eq.activo || '—')}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </td>
-      </tr>
-    `;
+    const eqs = parseEquipos(r.equipos), rid = r.id;
+    html += `<tr class="main-row" data-id="${rid}" onclick="toggleExpandRow('${rid}', this)"><td>${escapeHtml(r.edificio||'—')}</td><td>${escapeHtml(r.piso||'—')}</td><td>${escapeHtml(r.departamento||'—')}</td><td>${escapeHtml(r.area||'—')}</td><td>${escapeHtml(r.asignado||'—')}</td><td>${escapeHtml(r.cargo||'—')}</td><td style="text-align:center;"><span class="expand-icon" id="icon-${rid}">▶</span></td>${elim?`<td><button class="btn btn-delete" onclick="event.stopPropagation();eliminarEstacion('${rid}')">🗑️</button></td>`:''}</tr>
+    <tr class="detail-row" id="detail-${rid}" style="display:none;"><td colspan="${elim?8:7}"><strong>Equipos:</strong><table class="sub-table"><thead><tr><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Activo Fijo</th></tr></thead><tbody>${eqs.map(eq => `<tr><td>${escapeHtml(eq.tipo)}</td><td>${escapeHtml(eq.marca||'—')}</td><td>${escapeHtml(eq.modelo||'—')}</td><td>${escapeHtml(eq.serie||'—')}</td><td>${escapeHtml(eq.activo||'—')}</td></tr>`).join('')}</tbody></table></td></tr>`;
   });
   html += '</tbody></table>';
   container.innerHTML = html;
 }
 
-function toggleExpandRow(id, row) {
-  const detailRow = document.getElementById(`detail-${id}`);
-  const icon = document.getElementById(`icon-${id}`);
-  if (detailRow.style.display === 'none' || detailRow.style.display === '') {
-    detailRow.style.display = 'table-row';
-    icon.classList.add('open');
-    icon.textContent = '▼';
-  } else {
-    detailRow.style.display = 'none';
-    icon.classList.remove('open');
-    icon.textContent = '▶';
-  }
+function toggleExpandRow(id) {
+  const d = document.getElementById(`detail-${id}`), i = document.getElementById(`icon-${id}`);
+  if (d.style.display === 'none' || d.style.display === '') { d.style.display = 'table-row'; i.classList.add('open'); i.textContent = '▼'; }
+  else { d.style.display = 'none'; i.classList.remove('open'); i.textContent = '▶'; }
 }
 
-function parseEquipos(equiposRaw) {
-  if (!equiposRaw) return [];
-  if (typeof equiposRaw === 'string') {
-    if (equiposCache.has(equiposRaw)) return equiposCache.get(equiposRaw);
-    try {
-      const parsed = JSON.parse(equiposRaw);
-      equiposCache.set(equiposRaw, parsed);
-      return parsed;
-    } catch (e) {
-      return [];
-    }
+function parseEquipos(raw) {
+  if (!raw) return [];
+  if (typeof raw === 'string') {
+    if (equiposCache.has(raw)) return equiposCache.get(raw);
+    try { const p = JSON.parse(raw); equiposCache.set(raw, p); return p; } catch { return []; }
   }
-  return equiposRaw;
+  return raw;
 }
 
 // ==================== EXPORTAR CSV ====================
 btnExportCSV.addEventListener('click', () => {
-  if (!currentUser || !currentUser.permisos.exportar) return alert('No tiene permiso para exportar.');
-  const filtrados = aplicarFiltros(registros);
-  if (filtrados.length === 0) return alert('No hay datos para exportar.');
-
+  if (!currentUser?.permisos.exportar) return alert('Sin permiso.');
+  const datos = aplicarFiltros(registros);
+  if (!datos.length) return alert('Sin datos.');
   let csv = 'Edificio,Piso,Departamento,Área,Asignado,Cargo,Tipo Equipo,Marca,Modelo,Serie,Activo Fijo,Fecha\n';
-  filtrados.forEach(r => {
-    const equipos = parseEquipos(r.equipos);
-    if (equipos.length === 0) {
-      csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.asignado||''}","${r.cargo||''}","","","","","","${r.fecha}"\n`;
-    } else {
-      equipos.forEach(eq => {
-        csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.asignado||''}","${r.cargo||''}","${eq.tipo}","${eq.marca||''}","${eq.modelo||''}","${eq.serie||''}","${eq.activo||''}","${r.fecha}"\n`;
-      });
-    }
+  datos.forEach(r => {
+    const eqs = parseEquipos(r.equipos);
+    if (!eqs.length) csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.asignado||''}","${r.cargo||''}","","","","","","${r.fecha}"\n`;
+    else eqs.forEach(eq => csv += `"${r.edificio}","${r.piso}","${r.departamento}","${r.area}","${r.asignado||''}","${r.cargo||''}","${eq.tipo}","${eq.marca||''}","${eq.modelo||''}","${eq.serie||''}","${eq.activo||''}","${r.fecha}"\n`);
   });
-
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `inventario_indrhi_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `inventario_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
 });
 
-// ==================== EVENT LISTENERS ADICIONALES ====================
+// ==================== EVENTOS ====================
 btnAgregarEquipo.addEventListener('click', agregarEquipoTemporal);
 btnGuardar.addEventListener('click', guardarEstacion);
 btnLimpiarForm.addEventListener('click', limpiarFormulario);
-activoEquipo.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); agregarEquipoTemporal(); } });
+activoEquipo.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); agregarEquipoTemporal(); } });
