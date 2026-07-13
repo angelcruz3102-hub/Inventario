@@ -36,41 +36,22 @@
 
   <!-- ==================== CABECERA ==================== -->
   <header class="header-container">
-    <div class="logo-area" style="display: flex; align-items: center;">
-      
-      <svg viewBox="0 0 600 110" style="height: 48px; width: auto; display: block;" xmlns="http://www.w3.org/2000/svg">
-        
-        <g fill="#ffffff">
-          <path d="M 55 15 A 35 35 0 1 0 55 85 A 35 35 0 1 0 55 15 Z M 55 25 A 25 25 0 1 1 55 75 A 25 25 0 1 1 55 25 Z" />
-          <rect x="20" y="15" width="10" height="70" />
-          <rect x="20" y="75" width="35" height="10" />
-          <rect x="80" y="15" width="10" height="70" />
-          <rect x="55" y="15" width="35" height="10" />
-        </g>
-
-        <g fill="none" stroke="#ffffff" stroke-width="3.5">
-          <path d="M 5 40 Q 22 30 38 40 T 72 40 T 105 40" />
-          <path d="M 5 50 Q 22 40 38 50 T 72 50 T 105 50" />
-          <path d="M 5 60 Q 22 50 38 60 T 72 60 T 105 60" />
-        </g>
-
-        <rect x="20" y="94" width="70" height="6" fill="#ef4444" />
-
-        <text x="130" y="48" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="32" fill="#ffffff" letter-spacing="1">INSTITUTO NACIONAL DE</text>
-        <text x="130" y="85" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="32" fill="#ffffff" letter-spacing="1">RECURSOS HIDRÁULICOS</text>
-      </svg>
-      
+    <div class="logo-area">
+      <span class="logo-icon">🖥️</span>
+      <h1>INDRHI</h1>
     </div>
     <p class="subtitle">Inventario Tecnológico de Estaciones de Trabajo</p>
+    <div id="user-info" style="display:none;">
+      <span id="user-name-display"></span>
+      <button id="btn-logout" class="btn btn-small btn-secondary">🚪 Salir</button>
+    </div>
   </header>
-
 
   <nav id="tab-nav">
     <button class="tab-btn active" data-tab="registro">📝 Registro</button>
     <button class="tab-btn" data-tab="dashboard">📊 Dashboard y Búsqueda</button>
     <button class="tab-btn" data-tab="reportes">📄 Reportes</button>
     <button class="tab-btn" data-tab="configuracion" id="tab-config-btn">⚙️ Configuración</button>
-    <button class="tab-btn" data-tab="admin" id="tab-admin-btn" style="display:none;">👥 Admin</button>
   </nav>
 
   <div id="filters-bar" class="card" style="display:none;">
@@ -178,12 +159,12 @@
       <div id="table-container-reportes" class="table-wrapper"></div>
     </section>
 
-    <!-- Pestaña Configuración -->
+    <!-- Pestaña Configuración (solo admin) -->
     <section id="tab-configuracion" class="tab-content">
       <div class="card">
         <h2>⚙️ Configuración de Catálogos</h2>
         
-        <!-- Tipos de Equipo (NUEVO) -->
+        <!-- Tipos de Equipo -->
         <div class="catalog-section">
           <h3>Tipos de Equipo</h3>
           <div class="catalog-input-row">
@@ -193,7 +174,7 @@
           <ul id="tipo-equipo-list" class="catalog-list"></ul>
         </div>
 
-        <!-- Marcas (con dependencia de Tipo) -->
+        <!-- Marcas (depende de Tipo) -->
         <div class="catalog-section">
           <h3>Marcas</h3>
           <div class="catalog-input-row">
@@ -206,7 +187,7 @@
           <ul id="marca-catalogo-list" class="catalog-list"></ul>
         </div>
 
-        <!-- Modelos (con dependencia de Marca) -->
+        <!-- Modelos (depende de Marca) -->
         <div class="catalog-section">
           <h3>Modelos</h3>
           <div class="catalog-input-row">
@@ -229,7 +210,7 @@
           <ul id="dep-catalogo-list" class="catalog-list"></ul>
         </div>
 
-        <!-- Áreas -->
+        <!-- Áreas (depende de Departamento) -->
         <div class="catalog-section">
           <h3>Áreas</h3>
           <div class="catalog-input-row">
@@ -255,43 +236,21 @@
           </div>
           <p id="csv-status" class="status-message" style="margin-top:8px;"></p>
         </div>
-      </div>
-    </section>
 
-    <!-- Pestaña Admin (solo administradores) -->
-    <section id="tab-admin" class="tab-content">
-      <div class="card">
-        <h2>👥 Gestión de Usuarios</h2>
-        <div class="form-row" style="align-items:flex-end;">
-          <div class="form-group">
-            <label for="admin-usuario">Usuario</label>
+        <!-- GESTIÓN DE USUARIOS -->
+        <div class="catalog-section" id="user-management-section">
+          <h3>👥 Gestión de Usuarios</h3>
+          <div class="catalog-input-row">
             <input type="text" id="admin-usuario" placeholder="Nombre de usuario">
-          </div>
-          <div class="form-group">
-            <label for="admin-password">Contraseña</label>
             <input type="password" id="admin-password" placeholder="Contraseña">
-          </div>
-          <div class="form-group">
-            <label for="admin-rol">Rol</label>
             <select id="admin-rol">
               <option value="operador">Operador</option>
               <option value="admin">Administrador</option>
             </select>
+            <button id="btn-agregar-usuario" class="btn btn-add btn-small">+ Crear Usuario</button>
           </div>
-          <div class="form-group" style="flex-direction:row; align-items:center; gap:12px;">
-            <label style="display:flex; align-items:center; gap:4px;">
-              <input type="checkbox" id="perm-exportar" checked> Exportar
-            </label>
-            <label style="display:flex; align-items:center; gap:4px;">
-              <input type="checkbox" id="perm-editar" checked> Editar
-            </label>
-            <label style="display:flex; align-items:center; gap:4px;">
-              <input type="checkbox" id="perm-eliminar" checked> Eliminar
-            </label>
-          </div>
-          <button id="btn-agregar-usuario" class="btn btn-add">+ Crear Usuario</button>
+          <div id="usuarios-table-container" class="table-wrapper" style="margin-top:16px;"></div>
         </div>
-        <div id="usuarios-table-container" class="table-wrapper" style="margin-top:20px;"></div>
       </div>
     </section>
   </main>
