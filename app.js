@@ -20,6 +20,9 @@ let catalogos = {
 };
 const equiposCache = new Map();
 
+// ==================== SEARCHABLE SELECTS ====================
+let searchableDepartamento, searchableArea, searchableTipoEquipo, searchableMarcaEquipo, searchableModeloEquipo;
+
 // ==================== ELEMENTOS DOM ====================
 const loginOverlay = document.getElementById('login-overlay');
 const btnOperador = document.getElementById('btn-operador');
@@ -36,14 +39,15 @@ const tabConfigBtn = document.getElementById('tab-config-btn');
 
 const formEdificio = document.getElementById('edificio');
 const formPiso = document.getElementById('piso');
-const inputDepartamento = document.getElementById('departamento');
-const inputArea = document.getElementById('area');
+// Los inputs originales serán reemplazados por searchable selects, se guardan referencias iniciales
+const inputDepartamentoOriginal = document.getElementById('departamento');
+const inputAreaOriginal = document.getElementById('area');
 const formAsignado = document.getElementById('asignado');
 const formCargo = document.getElementById('cargo');
 
-const inputTipoEquipo = document.getElementById('tipo-equipo');
-const inputMarcaEquipo = document.getElementById('marca-equipo');
-const inputModeloEquipo = document.getElementById('modelo-equipo');
+const inputTipoEquipoOriginal = document.getElementById('tipo-equipo');
+const inputMarcaEquipoOriginal = document.getElementById('marca-equipo');
+const inputModeloEquipoOriginal = document.getElementById('modelo-equipo');
 const serieEquipo = document.getElementById('serie-equipo');
 const activoEquipo = document.getElementById('activo-equipo');
 const btnAgregarEquipo = document.getElementById('btn-agregar-equipo');
@@ -51,12 +55,6 @@ const equiposTempList = document.getElementById('equipos-temp-list');
 const btnGuardar = document.getElementById('btn-guardar');
 const btnLimpiarForm = document.getElementById('btn-limpiar-form');
 const formStatus = document.getElementById('form-status');
-
-const datalistDepartamentos = document.getElementById('datalist-departamentos');
-const datalistAreas = document.getElementById('datalist-areas');
-const datalistTipos = document.getElementById('datalist-tipos');
-const datalistMarcas = document.getElementById('datalist-marcas');
-const datalistModelos = document.getElementById('datalist-modelos');
 
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
@@ -103,6 +101,108 @@ const adminRol = document.getElementById('admin-rol');
 const btnAgregarUsuario = document.getElementById('btn-agregar-usuario');
 const usuariosTableContainer = document.getElementById('usuarios-table-container');
 
+// ==================== SEARCHABLE SELECT (Componente) ====================
+class SearchableSelect {
+  constructor(inputElement, opcionesIniciales = []) {
+    this.input = inputElement;
+    this.opciones = [...opcionesIniciales];
+    this.filtered = [...opcionesIniciales];
+    this.value = '';
+    this.onChangeCallback = null;
+    this.dropdownVisible = false;
+
+    this.input.parentNode.style.position = 'relative';
+    this.input.style.display = 'none';
+
+    this.wrapper = document.createElement('div');
+    this.wrapper.className = 'searchable-select-wrapper';
+    this.input.parentNode.insertBefore(this.wrapper, this.input.nextSibling);
+
+    this.visibleInput = document.createElement('input');
+    this.visibleInput.type = 'text';
+    this.visibleInput.className = this.input.className;
+    this.visibleInput.placeholder = this.input.placeholder;
+    this.visibleInput.required = this.input.required;
+    this.visibleInput.autocomplete = 'off';
+    this.wrapper.appendChild(this.visibleInput);
+
+    this.dropdown = document.createElement('ul');
+    this.dropdown.className = 'searchable-dropdown';
+    this.dropdown.style.display = 'none';
+    this.wrapper.appendChild(this.dropdown);
+
+    this.visibleInput.addEventListener('input', (e) => this._handleInput(e));
+    this.visibleInput.addEventListener('focus', () => this._showDropdown());
+    this.visibleInput.addEventListener('blur', () => setTimeout(() => this._hideDropdown(), 200));
+    this.dropdown.addEventListener('mousedown', (e) => e.preventDefault());
+    this.dropdown.addEventListener('click', (e) => this._handleSelect(e));
+
+    this._render();
+  }
+
+  setOptions(nuevasOpciones) {
+    this.opciones = [...nuevasOpciones];
+    this.filtered = [...nuevasOpciones];
+    this._render();
+  }
+
+  getValue() {
+    return this.visibleInput.value.trim();
+  }
+
+  setValue(valor) {
+    this.visibleInput.value = valor || '';
+    this.value = valor || '';
+    this._filter();
+  }
+
+  clear() {
+    this.setValue('');
+  }
+
+  onChange(callback) {
+    this.onChangeCallback = callback;
+  }
+
+  _handleInput(e) {
+    this.value = this.visibleInput.value.trim();
+    this._filter();
+    if (this.onChangeCallback) this.onChangeCallback(this.value);
+  }
+
+  _filter() {
+    const texto = this.value.toLowerCase();
+    this.filtered = texto ? this.opciones.filter(op => op.toLowerCase().includes(texto)) : [...this.opciones];
+    this._render();
+  }
+
+  _render() {
+    this.dropdown.innerHTML = this.filtered.map(op => `<li class="searchable-option" data-value="${escapeHtml(op)}">${escapeHtml(op)}</li>`).join('');
+  }
+
+  _showDropdown() {
+    if (this.filtered.length > 0) {
+      this.dropdown.style.display = 'block';
+      this.dropdownVisible = true;
+    }
+  }
+
+  _hideDropdown() {
+    this.dropdown.style.display = 'none';
+    this.dropdownVisible = false;
+  }
+
+  _handleSelect(e) {
+    const option = e.target.closest('li');
+    if (option) {
+      const valor = option.dataset.value;
+      this.setValue(valor);
+      this._hideDropdown();
+      if (this.onChangeCallback) this.onChangeCallback(valor);
+    }
+  }
+}
+
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('year').textContent = new Date().getFullYear();
@@ -110,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
   inicializarUsuariosPorDefecto();
   verificarSesion();
   setupLoginListeners();
+  inicializarSearchableSelects();
   setupTabs();
   setupFilters();
   cargarRegistros();
@@ -124,16 +225,76 @@ document.addEventListener('DOMContentLoaded', () => {
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.nextElementSibling?.click(); });
   });
 
-  inputDepartamento.addEventListener('input', actualizarDatalistAreas);
-  inputTipoEquipo.addEventListener('input', actualizarDatalistMarcas);
-  inputMarcaEquipo.addEventListener('input', actualizarDatalistModelos);
-
   btnImportCSV.addEventListener('click', importarCSV);
   btnAgregarUsuario.addEventListener('click', agregarUsuarioDesdeConfig);
   btnLogout.addEventListener('click', logout);
-
-  poblarDatalists();
 });
+
+function inicializarSearchableSelects() {
+  searchableDepartamento = new SearchableSelect(inputDepartamentoOriginal, catalogos.departamentos);
+  searchableArea = new SearchableSelect(inputAreaOriginal, catalogos.areas.map(a => a.nombre));
+  searchableTipoEquipo = new SearchableSelect(inputTipoEquipoOriginal, catalogos.tiposEquipo);
+  searchableMarcaEquipo = new SearchableSelect(inputMarcaEquipoOriginal, []);
+  searchableModeloEquipo = new SearchableSelect(inputModeloEquipoOriginal, []);
+
+  searchableMarcaEquipo.visibleInput.disabled = true;
+  searchableModeloEquipo.visibleInput.disabled = true;
+
+  // Dependencias
+  searchableDepartamento.onChange(() => {
+    const depto = searchableDepartamento.getValue();
+    if (depto) {
+      const areasFiltradas = catalogos.areas.filter(a => a.departamento.toLowerCase() === depto.toLowerCase()).map(a => a.nombre);
+      searchableArea.setOptions(areasFiltradas);
+    } else {
+      searchableArea.setOptions(catalogos.areas.map(a => a.nombre));
+    }
+  });
+
+  searchableTipoEquipo.onChange(() => {
+    const tipo = searchableTipoEquipo.getValue();
+    searchableMarcaEquipo.visibleInput.disabled = !tipo;
+    searchableModeloEquipo.visibleInput.disabled = true;
+    searchableModeloEquipo.setOptions([]);
+    searchableModeloEquipo.setValue('');
+    if (tipo) {
+      const marcasFiltradas = catalogos.marcas.filter(m => m.tipoEquipo.toLowerCase() === tipo.toLowerCase()).map(m => m.nombre);
+      searchableMarcaEquipo.setOptions(marcasFiltradas);
+    } else {
+      searchableMarcaEquipo.setOptions([]);
+      searchableMarcaEquipo.setValue('');
+    }
+  });
+
+  searchableMarcaEquipo.onChange(() => {
+    const marca = searchableMarcaEquipo.getValue();
+    searchableModeloEquipo.visibleInput.disabled = !marca;
+    if (marca) {
+      const modelosFiltrados = catalogos.modelos.filter(m => m.marca.toLowerCase() === marca.toLowerCase()).map(m => m.nombre);
+      searchableModeloEquipo.setOptions(modelosFiltrados);
+    } else {
+      searchableModeloEquipo.setOptions([]);
+      searchableModeloEquipo.setValue('');
+    }
+  });
+}
+
+function actualizarOpcionesSearchables() {
+  searchableDepartamento.setOptions(catalogos.departamentos);
+  searchableArea.setOptions(catalogos.areas.map(a => a.nombre));
+  searchableTipoEquipo.setOptions(catalogos.tiposEquipo);
+  // Refrescar dependencias actuales
+  const tipo = searchableTipoEquipo.getValue();
+  if (tipo) {
+    const marcas = catalogos.marcas.filter(m => m.tipoEquipo.toLowerCase() === tipo.toLowerCase()).map(m => m.nombre);
+    searchableMarcaEquipo.setOptions(marcas);
+  }
+  const marca = searchableMarcaEquipo.getValue();
+  if (marca) {
+    const modelos = catalogos.modelos.filter(m => m.marca.toLowerCase() === marca.toLowerCase()).map(m => m.nombre);
+    searchableModeloEquipo.setOptions(modelos);
+  }
+}
 
 // ==================== AUTENTICACIÓN Y SESIÓN ====================
 function inicializarUsuariosPorDefecto() {
@@ -347,7 +508,7 @@ function agregarElementoCatalogo(tipo, valor, padre, inputElement, listElement) 
   if (tipo === 'marcas') marcaTipoSelect.value = '';
   if (tipo === 'modelos') modeloMarcaSelect.value = '';
   renderizarListaCatalogo(tipo, listElement);
-  poblarDatalists();
+  actualizarOpcionesSearchables();
   if (currentTab === 'configuracion') { renderizarListasConfiguracion(); renderTablaUsuariosConfig(); }
 }
 
@@ -369,7 +530,7 @@ function eliminarElementoCatalogo(tipo, valor, padre, listElement) {
   }
   guardarCatalogosEnStorage();
   renderizarListaCatalogo(tipo, listElement);
-  poblarDatalists();
+  actualizarOpcionesSearchables();
   if (currentTab === 'configuracion') { renderizarListasConfiguracion(); renderTablaUsuariosConfig(); }
 }
 
@@ -381,37 +542,6 @@ function renderizarListaCatalogo(tipo, listElement) {
   else if (tipo === 'departamentos') html = catalogos.departamentos.map(d => `<li class="catalog-item"><span>${escapeHtml(d)}</span><button class="btn-remove-item" onclick="eliminarElementoCatalogo('departamentos','${escapeHtml(d)}', null, document.getElementById('dep-catalogo-list'))">✕</button></li>`).join('');
   else if (tipo === 'areas') html = catalogos.areas.map(a => `<li class="catalog-item"><span>${escapeHtml(a.nombre)} (${escapeHtml(a.departamento)})</span><button class="btn-remove-item" onclick="eliminarElementoCatalogo('areas','${escapeHtml(a.nombre)}','${escapeHtml(a.departamento)}', document.getElementById('area-catalogo-list'))">✕</button></li>`).join('');
   listElement.innerHTML = html || '<p class="placeholder-text">No hay elementos.</p>';
-}
-
-// ==================== DATALISTS ====================
-function poblarDatalists() {
-  datalistTipos.innerHTML = catalogos.tiposEquipo.map(t => `<option value="${escapeHtml(t)}">`).join('');
-  datalistMarcas.innerHTML = '';
-  datalistModelos.innerHTML = '';
-  datalistDepartamentos.innerHTML = catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">`).join('');
-  actualizarDatalistAreas();
-  marcaTipoSelect.innerHTML = '<option value="">Seleccione tipo de equipo</option>' + catalogos.tiposEquipo.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-  modeloMarcaSelect.innerHTML = '<option value="">Seleccione marca</option>' + catalogos.marcas.map(m => `<option value="${escapeHtml(m.nombre)}">${escapeHtml(m.nombre)} (${escapeHtml(m.tipoEquipo)})</option>`).join('');
-  areaDeptoSelect.innerHTML = '<option value="">Seleccione departamento</option>' + catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
-}
-
-function actualizarDatalistAreas() {
-  const depto = inputDepartamento.value.trim();
-  datalistAreas.innerHTML = !depto ? catalogos.areas.map(a => `<option value="${escapeHtml(a.nombre)}">`).join('') : catalogos.areas.filter(a => a.departamento.toLowerCase() === depto.toLowerCase()).map(a => `<option value="${escapeHtml(a.nombre)}">`).join('');
-}
-
-function actualizarDatalistMarcas() {
-  const tipo = inputTipoEquipo.value.trim();
-  inputMarcaEquipo.disabled = !tipo;
-  datalistMarcas.innerHTML = !tipo ? '' : catalogos.marcas.filter(m => m.tipoEquipo.toLowerCase() === tipo.toLowerCase()).map(m => `<option value="${escapeHtml(m.nombre)}">`).join('');
-  inputModeloEquipo.disabled = true;
-  datalistModelos.innerHTML = '';
-}
-
-function actualizarDatalistModelos() {
-  const marca = inputMarcaEquipo.value.trim();
-  inputModeloEquipo.disabled = !marca;
-  datalistModelos.innerHTML = !marca ? '' : catalogos.modelos.filter(m => m.marca.toLowerCase() === marca.toLowerCase()).map(m => `<option value="${escapeHtml(m.nombre)}">`).join('');
 }
 
 // ==================== APRENDIZAJE AUTOMÁTICO ====================
@@ -429,7 +559,7 @@ function aprenderCatalogos(estacion) {
     const modelo = eq.modelo.trim().toUpperCase();
     if (modelo && marca && !catalogos.modelos.some(m => m.nombre === modelo && m.marca === marca)) { catalogos.modelos.push({ nombre: modelo, marca: marca }); catalogos.modelos.sort((a,b) => a.nombre.localeCompare(b.nombre)); huboCambios = true; }
   });
-  if (huboCambios) { guardarCatalogosEnStorage(); poblarDatalists(); if (currentTab === 'configuracion') { renderizarListasConfiguracion(); renderTablaUsuariosConfig(); } }
+  if (huboCambios) { guardarCatalogosEnStorage(); actualizarOpcionesSearchables(); if (currentTab === 'configuracion') { renderizarListasConfiguracion(); renderTablaUsuariosConfig(); } }
 }
 
 // ==================== IMPORTACIÓN CSV ====================
@@ -472,7 +602,7 @@ function importarCSV() {
         });
         catalogos.departamentos.sort(); catalogos.areas.sort((a,b) => a.nombre.localeCompare(b.nombre));
       }
-      guardarCatalogosEnStorage(); poblarDatalists();
+      guardarCatalogosEnStorage(); actualizarOpcionesSearchables();
       if (currentTab === 'configuracion') { renderizarListasConfiguracion(); renderTablaUsuariosConfig(); }
       csvFileInput.value = ''; csvStatus.textContent = `✅ Importados ${nuevosItems.length} registros sin duplicados.`; csvStatus.className = 'status-message success';
       setTimeout(() => { csvStatus.textContent = ''; }, 4000);
@@ -519,7 +649,6 @@ function renderizarListasConfiguracion() {
   renderizarListaCatalogo('modelos', modeloList);
   renderizarListaCatalogo('departamentos', depList);
   renderizarListaCatalogo('areas', areaList);
-  poblarDatalists();
 }
 
 // ==================== FILTROS ====================
@@ -572,16 +701,19 @@ function escapeHtml(s) { return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;')
 // ==================== CRUD ESTACIONES ====================
 async function guardarEstacion() {
   if (!formEdificio.value) return mostrarStatus('error', 'Selecciona un edificio.');
-  const depto = inputDepartamento.value.trim();
+  const depto = searchableDepartamento.getValue();
   if (!depto) return mostrarStatus('error', 'El departamento es obligatorio.');
   if (!formAsignado.value.trim()) return mostrarStatus('error', 'El campo "Asignado" es obligatorio.');
   if (equiposTemporales.length === 0) return mostrarStatus('error', 'Agrega al menos un equipo.');
 
-  const area = inputArea.value.trim();
+  const area = searchableArea.getValue();
   const nuevaEstacion = {
-    edificio: formEdificio.value, piso: formPiso.value.trim(),
-    departamento: capitalizarPalabras(depto), area: area ? capitalizarPalabras(area) : '',
-    asignado: capitalizarPalabras(formAsignado.value.trim()), cargo: capitalizarPalabras(formCargo.value.trim()),
+    edificio: formEdificio.value,
+    piso: formPiso.value.trim(),
+    departamento: capitalizarPalabras(depto),
+    area: area ? capitalizarPalabras(area) : '',
+    asignado: capitalizarPalabras(formAsignado.value.trim()),
+    cargo: capitalizarPalabras(formCargo.value.trim()),
     equipos: [...equiposTemporales]
   };
 
@@ -593,19 +725,28 @@ async function guardarEstacion() {
   registros.unshift(registroOptimista);
   equiposCache.set(tempId, nuevaEstacion.equipos);
   limpiarSeccionUsuarioYEquipos();
-  actualizarFiltrosDatalist(); actualizarVista();
+  actualizarFiltrosDatalist();
+  actualizarVista();
   mostrarStatus('loading', 'Guardando...');
 
   try {
     const res = await fetchPost({ action: 'save', data: nuevaEstacion });
     const idx = registros.findIndex(r => r.id === tempId);
-    if (idx !== -1 && res.id) { registros[idx].id = res.id; registros[idx].fecha = res.fecha || tempFecha; equiposCache.set(res.id, nuevaEstacion.equipos); equiposCache.delete(tempId); }
-    actualizarFiltrosDatalist(); actualizarVista();
+    if (idx !== -1 && res.id) {
+      registros[idx].id = res.id;
+      registros[idx].fecha = res.fecha || tempFecha;
+      equiposCache.set(res.id, nuevaEstacion.equipos);
+      equiposCache.delete(tempId);
+    }
+    actualizarFiltrosDatalist();
+    actualizarVista();
     mostrarStatus('success', '✅ Estación guardada exitosamente.');
     setTimeout(() => limpiarStatus(), 3000);
   } catch (e) {
-    registros = registros.filter(r => r.id !== tempId); equiposCache.delete(tempId);
-    actualizarFiltrosDatalist(); actualizarVista();
+    registros = registros.filter(r => r.id !== tempId);
+    equiposCache.delete(tempId);
+    actualizarFiltrosDatalist();
+    actualizarVista();
     mostrarStatus('error', 'Error al guardar.');
   }
 }
@@ -615,34 +756,42 @@ async function eliminarEstacion(id) {
   const eliminado = registros.find(r => r.id === id);
   registros = registros.filter(r => r.id !== id);
   equiposCache.delete(id);
-  actualizarFiltrosDatalist(); actualizarVista();
+  actualizarFiltrosDatalist();
+  actualizarVista();
   try { await fetchPost({ action: 'delete', id }); } catch {
     if (eliminado) { registros.unshift(eliminado); equiposCache.set(eliminado.id, parseEquipos(eliminado.equipos)); }
-    actualizarFiltrosDatalist(); actualizarVista();
+    actualizarFiltrosDatalist();
+    actualizarVista();
     alert('Error al eliminar.');
   }
 }
 
 // ==================== EQUIPOS TEMPORALES ====================
 function agregarEquipoTemporal() {
-  const tipo = inputTipoEquipo.value.trim();
+  const tipo = searchableTipoEquipo.getValue();
   if (!tipo) return alert('Escribe o selecciona el tipo de equipo.');
   equiposTemporales.push({
-    tipo, marca: inputMarcaEquipo.value.trim(), modelo: inputModeloEquipo.value.trim(),
-    serie: serieEquipo.value.trim().toUpperCase(), activo: activoEquipo.value.trim().toUpperCase()
+    tipo,
+    marca: searchableMarcaEquipo.getValue(),
+    modelo: searchableModeloEquipo.getValue(),
+    serie: serieEquipo.value.trim().toUpperCase(),
+    activo: activoEquipo.value.trim().toUpperCase()
   });
   renderEquiposTemporales();
   limpiarCamposEquipo();
-  inputTipoEquipo.focus();
+  searchableTipoEquipo.visibleInput.focus();
 }
 
 function eliminarEquipoTemporal(i) { equiposTemporales.splice(i,1); renderEquiposTemporales(); }
 
 function limpiarCamposEquipo() {
-  inputTipoEquipo.value = ''; inputMarcaEquipo.value = ''; inputMarcaEquipo.disabled = true;
-  inputModeloEquipo.value = ''; inputModeloEquipo.disabled = true;
-  serieEquipo.value = ''; activoEquipo.value = '';
-  datalistMarcas.innerHTML = ''; datalistModelos.innerHTML = '';
+  searchableTipoEquipo.clear();
+  searchableMarcaEquipo.clear();
+  searchableMarcaEquipo.visibleInput.disabled = true;
+  searchableModeloEquipo.clear();
+  searchableModeloEquipo.visibleInput.disabled = true;
+  serieEquipo.value = '';
+  activoEquipo.value = '';
 }
 
 function renderEquiposTemporales() {
@@ -651,14 +800,25 @@ function renderEquiposTemporales() {
 }
 
 function limpiarSeccionUsuarioYEquipos() {
-  formAsignado.value = ''; formCargo.value = '';
-  equiposTemporales = []; renderEquiposTemporales();
-  limpiarCamposEquipo(); limpiarStatus();
+  formAsignado.value = '';
+  formCargo.value = '';
+  equiposTemporales = [];
+  renderEquiposTemporales();
+  limpiarCamposEquipo();
+  limpiarStatus();
 }
 
 function limpiarFormulario() {
-  formEdificio.value = ''; formPiso.value = ''; inputDepartamento.value = ''; inputArea.value = '';
-  formAsignado.value = ''; formCargo.value = ''; equiposTemporales = []; renderEquiposTemporales(); limpiarCamposEquipo(); limpiarStatus(); poblarDatalists();
+  formEdificio.value = '';
+  formPiso.value = '';
+  searchableDepartamento.clear();
+  searchableArea.clear();
+  formAsignado.value = '';
+  formCargo.value = '';
+  equiposTemporales = [];
+  renderEquiposTemporales();
+  limpiarCamposEquipo();
+  limpiarStatus();
 }
 
 function mostrarStatus(t, m) { formStatus.textContent = m; formStatus.className = `status-message ${t}`; }
@@ -668,12 +828,16 @@ function limpiarStatus() { formStatus.textContent = ''; formStatus.className = '
 function actualizarVista() {
   if (currentTab === 'registro' || currentTab === 'configuracion') return;
   const filtrados = aplicarFiltros(registros);
-  if (currentTab === 'dashboard') { renderStats(filtrados); renderTable(dashboardTableContainer, filtrados, true); }
-  else if (currentTab === 'reportes') renderTable(reportesTableContainer, filtrados, false);
+  if (currentTab === 'dashboard') {
+    renderStats(filtrados);
+    renderTable(dashboardTableContainer, filtrados, true);
+  } else if (currentTab === 'reportes') {
+    renderTable(reportesTableContainer, filtrados, false);
+  }
 }
 
 function aplicarFiltros(data) {
-  return data.filter(r => 
+  return data.filter(r =>
     (!filters.piso || (r.piso||'').toLowerCase().includes(filters.piso)) &&
     (!filters.departamento || (r.departamento||'').toLowerCase().includes(filters.departamento)) &&
     (!filters.area || (r.area||'').toLowerCase().includes(filters.area)) &&
