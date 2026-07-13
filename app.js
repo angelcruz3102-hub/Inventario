@@ -7,16 +7,36 @@ let equiposTemporales = [];
 let currentTab = 'registro';
 let filters = { piso: '', departamento: '', area: '', responsable: '' };
 
+// Sesión actual
+let currentUser = null; // { usuario, rol, permisos }
+
 // ==================== CATÁLOGOS (localStorage) ====================
 const STORAGE_KEY = 'catalogosINDRHI';
+const USERS_KEY = 'usuariosINDRHI';
 let catalogos = {
   departamentos: [],
-  areas: [],          // { nombre: '', departamento: '' }
-  marcas: [],
-  modelos: []
+  areas: [],          // { nombre: string, departamento: string }
+  tiposEquipo: [],
+  marcas: [],         // { nombre: string, tipoEquipo: string }
+  modelos: []         // { nombre: string, marca: string }
 };
 
 // ==================== ELEMENTOS DOM ====================
+// Login
+const loginOverlay = document.getElementById('login-overlay');
+const btnOperador = document.getElementById('btn-operador');
+const btnAdmin = document.getElementById('btn-admin');
+const adminLoginForm = document.getElementById('admin-login-form');
+const btnVolver = document.getElementById('btn-volver');
+const loginUsuario = document.getElementById('login-usuario');
+const loginPassword = document.getElementById('login-password');
+const loginError = document.getElementById('login-error');
+const userInfo = document.getElementById('user-info');
+const userNameDisplay = document.getElementById('user-name-display');
+const btnLogout = document.getElementById('btn-logout');
+const tabConfigBtn = document.getElementById('tab-config-btn');
+const tabAdminBtn = document.getElementById('tab-admin-btn');
+
 // Registro – ubicación
 const formEdificio = document.getElementById('edificio');
 const formPiso = document.getElementById('piso');
@@ -55,7 +75,18 @@ const dashboardTableContainer = document.getElementById('table-container-dashboa
 const reportesTableContainer = document.getElementById('table-container-reportes');
 const btnExportCSV = document.getElementById('btn-export-csv');
 
-// Configuración
+// Configuración catálogos
+const tipoEquipoInput = document.getElementById('tipo-equipo-input');
+const btnTipoAdd = document.getElementById('btn-tipo-add');
+const tipoEquipoList = document.getElementById('tipo-equipo-list');
+const marcaTipoSelect = document.getElementById('marca-tipo-select');
+const marcaInput = document.getElementById('marca-catalogo-input');
+const btnMarcaAdd = document.getElementById('btn-marca-add');
+const marcaList = document.getElementById('marca-catalogo-list');
+const modeloMarcaSelect = document.getElementById('modelo-marca-select');
+const modeloInput = document.getElementById('modelo-catalogo-input');
+const btnModeloAdd = document.getElementById('btn-modelo-add');
+const modeloList = document.getElementById('modelo-catalogo-list');
 const depInput = document.getElementById('dep-catalogo-input');
 const btnDepAdd = document.getElementById('btn-dep-add');
 const depList = document.getElementById('dep-catalogo-list');
@@ -63,103 +94,275 @@ const areaDeptoSelect = document.getElementById('area-depto-select');
 const areaInput = document.getElementById('area-catalogo-input');
 const btnAreaAdd = document.getElementById('btn-area-add');
 const areaList = document.getElementById('area-catalogo-list');
-const marcaInput = document.getElementById('marca-catalogo-input');
-const btnMarcaAdd = document.getElementById('btn-marca-add');
-const marcaList = document.getElementById('marca-catalogo-list');
-const modeloInput = document.getElementById('modelo-catalogo-input');
-const btnModeloAdd = document.getElementById('btn-modelo-add');
-const modeloList = document.getElementById('modelo-catalogo-list');
+
+// CSV
+const csvTipoImport = document.getElementById('csv-tipo-import');
+const csvFileInput = document.getElementById('csv-file-input');
+const btnImportCSV = document.getElementById('btn-import-csv');
+const csvStatus = document.getElementById('csv-status');
+
+// Admin usuarios
+const adminUsuario = document.getElementById('admin-usuario');
+const adminPassword = document.getElementById('admin-password');
+const adminRol = document.getElementById('admin-rol');
+const permExportar = document.getElementById('perm-exportar');
+const permEditar = document.getElementById('perm-editar');
+const permEliminar = document.getElementById('perm-eliminar');
+const btnAgregarUsuario = document.getElementById('btn-agregar-usuario');
+const usuariosTableContainer = document.getElementById('usuarios-table-container');
 
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('year').textContent = new Date().getFullYear();
   cargarCatalogosDesdeStorage();
-  poblarSelectsCatalogo();
+  inicializarUsuariosPorDefecto();
+  verificarSesion();
+  setupLoginListeners();
   setupTabs();
   setupFilters();
   cargarRegistros();
 
   // Listeners de catálogos
+  btnTipoAdd.addEventListener('click', () => agregarElementoCatalogo('tiposEquipo', tipoEquipoInput.value.trim(), null, tipoEquipoInput, tipoEquipoList));
+  btnMarcaAdd.addEventListener('click', () => agregarElementoCatalogo('marcas', marcaInput.value.trim(), marcaTipoSelect.value, marcaInput, marcaList));
+  btnModeloAdd.addEventListener('click', () => agregarElementoCatalogo('modelos', modeloInput.value.trim(), modeloMarcaSelect.value, modeloInput, modeloList));
   btnDepAdd.addEventListener('click', () => agregarElementoCatalogo('departamentos', depInput.value.trim(), null, depInput, depList));
   btnAreaAdd.addEventListener('click', () => agregarElementoCatalogo('areas', areaInput.value.trim(), areaDeptoSelect.value, areaInput, areaList));
-  btnMarcaAdd.addEventListener('click', () => agregarElementoCatalogo('marcas', marcaInput.value.trim(), null, marcaInput, marcaList));
-  btnModeloAdd.addEventListener('click', () => agregarElementoCatalogo('modelos', modeloInput.value.trim(), null, modeloInput, modeloList));
 
   // Enter en inputs de catálogo
-  depInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnDepAdd.click(); });
-  areaInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnAreaAdd.click(); });
-  marcaInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnMarcaAdd.click(); });
-  modeloInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnModeloAdd.click(); });
+  [tipoEquipoInput, marcaInput, modeloInput, depInput, areaInput].forEach(inp => {
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.nextElementSibling?.click(); });
+  });
 
-  // Dependencia área-departamento en formulario de registro
+  // Dependencias en formulario
   selectDepartamento.addEventListener('change', filtrarAreasFormulario);
+  tipoEquipo.addEventListener('change', actualizarMarcasPorTipo);
+  selectMarcaEquipo.addEventListener('change', actualizarModelosPorMarca);
+
+  // CSV
+  btnImportCSV.addEventListener('click', importarCSV);
+
+  // Admin usuarios
+  btnAgregarUsuario.addEventListener('click', agregarOActualizarUsuario);
+
+  // Logout
+  btnLogout.addEventListener('click', logout);
+
+  // Exportar (ocultar si no tiene permiso)
+  ajustarUIporRol();
 });
 
-// ==================== MANEJO DE CATÁLOGOS ====================
+// ==================== AUTENTICACIÓN Y SESIÓN ====================
+function inicializarUsuariosPorDefecto() {
+  let usuarios = obtenerUsuarios();
+  if (usuarios.length === 0) {
+    usuarios.push({
+      usuario: 'admin',
+      password: 'admin',
+      rol: 'admin',
+      permisos: { exportar: true, editar: true, eliminar: true }
+    });
+    guardarUsuarios(usuarios);
+  }
+}
+
+function obtenerUsuarios() {
+  const stored = localStorage.getItem(USERS_KEY);
+  return stored ? JSON.parse(stored) : [];
+}
+
+function guardarUsuarios(users) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+function verificarSesion() {
+  const sesion = localStorage.getItem('sesionINDRHI');
+  if (sesion) {
+    currentUser = JSON.parse(sesion);
+    loginOverlay.style.display = 'none';
+    mostrarInfoUsuario();
+    ajustarUIporRol();
+  } else {
+    loginOverlay.style.display = 'flex';
+  }
+}
+
+function setupLoginListeners() {
+  btnOperador.addEventListener('click', () => {
+    currentUser = { usuario: 'operador', rol: 'operador', permisos: { exportar: false, editar: true, eliminar: false } };
+    localStorage.setItem('sesionINDRHI', JSON.stringify(currentUser));
+    loginOverlay.style.display = 'none';
+    mostrarInfoUsuario();
+    ajustarUIporRol();
+    switchTab('registro');
+  });
+
+  btnAdmin.addEventListener('click', () => {
+    document.getElementById('login-buttons').style.display = 'none';
+    adminLoginForm.style.display = 'flex';
+  });
+
+  btnVolver.addEventListener('click', () => {
+    document.getElementById('login-buttons').style.display = 'flex';
+    adminLoginForm.style.display = 'none';
+    loginError.style.display = 'none';
+  });
+
+  adminLoginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const usuario = loginUsuario.value.trim();
+    const pass = loginPassword.value.trim();
+    if (!usuario || !pass) {
+      loginError.textContent = 'Complete todos los campos.';
+      loginError.style.display = 'block';
+      return;
+    }
+    const usuarios = obtenerUsuarios();
+    const user = usuarios.find(u => u.usuario === usuario && u.password === pass);
+    if (!user) {
+      loginError.textContent = 'Credenciales inválidas.';
+      loginError.style.display = 'block';
+      return;
+    }
+    currentUser = { usuario: user.usuario, rol: user.rol, permisos: user.permisos };
+    localStorage.setItem('sesionINDRHI', JSON.stringify(currentUser));
+    loginOverlay.style.display = 'none';
+    mostrarInfoUsuario();
+    ajustarUIporRol();
+    switchTab('registro');
+    adminLoginForm.reset();
+    document.getElementById('login-buttons').style.display = 'flex';
+    adminLoginForm.style.display = 'none';
+    loginError.style.display = 'none';
+  });
+}
+
+function logout() {
+  localStorage.removeItem('sesionINDRHI');
+  currentUser = null;
+  loginOverlay.style.display = 'flex';
+  userInfo.style.display = 'none';
+  document.getElementById('login-buttons').style.display = 'flex';
+  adminLoginForm.style.display = 'none';
+  ajustarUIporRol();
+  switchTab('registro');
+}
+
+function mostrarInfoUsuario() {
+  if (currentUser) {
+    userInfo.style.display = 'flex';
+    userNameDisplay.textContent = currentUser.usuario + (currentUser.rol === 'admin' ? ' (Admin)' : ' (Operador)');
+  }
+}
+
+function ajustarUIporRol() {
+  if (!currentUser) {
+    // Sin sesión, ocultar todo sensible
+    tabConfigBtn.style.display = 'none';
+    tabAdminBtn.style.display = 'none';
+    btnExportCSV.style.display = 'none';
+    return;
+  }
+  const esAdmin = currentUser.rol === 'admin';
+  tabConfigBtn.style.display = esAdmin ? 'inline-flex' : 'none';
+  tabAdminBtn.style.display = esAdmin ? 'inline-flex' : 'none';
+  btnExportCSV.style.display = currentUser.permisos.exportar ? 'inline-flex' : 'none';
+  // Ocultar botones de eliminar en tablas si no tiene permiso
+  document.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.style.display = currentUser.permisos.eliminar ? 'inline-flex' : 'none';
+  });
+  // Si la pestaña actual es config/admin y no es admin, cambiar a registro
+  if ((currentTab === 'configuracion' || currentTab === 'admin') && !esAdmin) {
+    switchTab('registro');
+  }
+  // Forzar re-render de tablas para mostrar/ocultar botones
+  actualizarVista();
+}
+
+// ==================== MANEJO DE CATÁLOGOS JERÁRQUICOS ====================
 function cargarCatalogosDesdeStorage() {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
     try {
       catalogos = JSON.parse(stored);
     } catch (e) {
-      catalogos = { departamentos: [], areas: [], marcas: [], modelos: [] };
+      catalogos = { departamentos: [], areas: [], tiposEquipo: [], marcas: [], modelos: [] };
     }
   }
-  // Asegurar estructura
-  if (!catalogos.departamentos) catalogos.departamentos = [];
-  if (!catalogos.areas) catalogos.areas = [];
-  if (!catalogos.marcas) catalogos.marcas = [];
-  if (!catalogos.modelos) catalogos.modelos = [];
+  // Asegurar estructura actualizada
+  if (!catalogos.tiposEquipo) catalogos.tiposEquipo = [];
+  if (!Array.isArray(catalogos.marcas)) catalogos.marcas = [];
+  else {
+    // Migrar marcas planas a objetos si es necesario
+    catalogos.marcas = catalogos.marcas.map(m => typeof m === 'string' ? { nombre: m, tipoEquipo: '' } : m);
+  }
+  if (!Array.isArray(catalogos.modelos)) catalogos.modelos = [];
+  else {
+    catalogos.modelos = catalogos.modelos.map(m => typeof m === 'string' ? { nombre: m, marca: '' } : m);
+  }
+  guardarCatalogosEnStorage();
 }
 
 function guardarCatalogosEnStorage() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(catalogos));
 }
 
-function agregarElementoCatalogo(tipo, valor, deptoPadre, inputElement, listElement) {
+function agregarElementoCatalogo(tipo, valor, padre, inputElement, listElement) {
   if (!valor) return alert('Ingrese un valor.');
   valor = valor.trim();
-  // Capitalizar si es departamento o área, mayúsculas para marcas/modelos
-  if (tipo === 'departamentos') {
+  if (tipo === 'tiposEquipo') {
+    valor = capitalizarPalabras(valor);
+    if (catalogos.tiposEquipo.includes(valor)) return alert('Ya existe ese tipo de equipo.');
+    catalogos.tiposEquipo.push(valor);
+    catalogos.tiposEquipo.sort();
+  } else if (tipo === 'marcas') {
+    if (!padre) return alert('Seleccione un tipo de equipo para la marca.');
+    valor = valor.toUpperCase();
+    if (catalogos.marcas.some(m => m.nombre === valor && m.tipoEquipo === padre)) return alert('Esa marca ya existe para ese tipo.');
+    catalogos.marcas.push({ nombre: valor, tipoEquipo: padre });
+    catalogos.marcas.sort((a,b) => a.nombre.localeCompare(b.nombre));
+  } else if (tipo === 'modelos') {
+    if (!padre) return alert('Seleccione una marca para el modelo.');
+    valor = valor.toUpperCase();
+    if (catalogos.modelos.some(m => m.nombre === valor && m.marca === padre)) return alert('Ese modelo ya existe para esa marca.');
+    catalogos.modelos.push({ nombre: valor, marca: padre });
+    catalogos.modelos.sort((a,b) => a.nombre.localeCompare(b.nombre));
+  } else if (tipo === 'departamentos') {
     valor = capitalizarPalabras(valor);
     if (catalogos.departamentos.includes(valor)) return alert('Ya existe ese departamento.');
     catalogos.departamentos.push(valor);
     catalogos.departamentos.sort();
   } else if (tipo === 'areas') {
-    if (!deptoPadre) return alert('Seleccione un departamento para el área.');
+    if (!padre) return alert('Seleccione un departamento para el área.');
     valor = capitalizarPalabras(valor);
-    if (catalogos.areas.some(a => a.nombre === valor && a.departamento === deptoPadre)) return alert('Ya existe esa área en ese departamento.');
-    catalogos.areas.push({ nombre: valor, departamento: deptoPadre });
+    if (catalogos.areas.some(a => a.nombre === valor && a.departamento === padre)) return alert('Ya existe esa área en ese departamento.');
+    catalogos.areas.push({ nombre: valor, departamento: padre });
     catalogos.areas.sort((a,b) => a.nombre.localeCompare(b.nombre));
-  } else if (tipo === 'marcas') {
-    valor = valor.toUpperCase();
-    if (catalogos.marcas.includes(valor)) return alert('Ya existe esa marca.');
-    catalogos.marcas.push(valor);
-    catalogos.marcas.sort();
-  } else if (tipo === 'modelos') {
-    valor = valor.toUpperCase();
-    if (catalogos.modelos.includes(valor)) return alert('Ya existe ese modelo.');
-    catalogos.modelos.push(valor);
-    catalogos.modelos.sort();
   }
   guardarCatalogosEnStorage();
   inputElement.value = '';
   if (tipo === 'areas') areaDeptoSelect.value = '';
+  if (tipo === 'marcas') marcaTipoSelect.value = '';
+  if (tipo === 'modelos') modeloMarcaSelect.value = '';
   renderizarListaCatalogo(tipo, listElement);
-  poblarSelectsCatalogo(); // Refrescar selects en registro
+  poblarSelectsCatalogo();
 }
 
-function eliminarElementoCatalogo(tipo, valor, deptoPadre, listElement) {
-  if (tipo === 'departamentos') {
+function eliminarElementoCatalogo(tipo, valor, padre, listElement) {
+  if (tipo === 'tiposEquipo') {
+    catalogos.tiposEquipo = catalogos.tiposEquipo.filter(t => t !== valor);
+    catalogos.marcas = catalogos.marcas.filter(m => m.tipoEquipo !== valor);
+    catalogos.modelos = catalogos.modelos.filter(m => !catalogos.marcas.some(ma => ma.nombre === m.marca));
+  } else if (tipo === 'marcas') {
+    catalogos.marcas = catalogos.marcas.filter(m => !(m.nombre === valor && m.tipoEquipo === padre));
+    catalogos.modelos = catalogos.modelos.filter(m => m.marca !== valor);
+  } else if (tipo === 'modelos') {
+    catalogos.modelos = catalogos.modelos.filter(m => !(m.nombre === valor && m.marca === padre));
+  } else if (tipo === 'departamentos') {
     catalogos.departamentos = catalogos.departamentos.filter(d => d !== valor);
-    // Eliminar también las áreas asociadas
     catalogos.areas = catalogos.areas.filter(a => a.departamento !== valor);
   } else if (tipo === 'areas') {
-    catalogos.areas = catalogos.areas.filter(a => !(a.nombre === valor && a.departamento === deptoPadre));
-  } else if (tipo === 'marcas') {
-    catalogos.marcas = catalogos.marcas.filter(m => m !== valor);
-  } else if (tipo === 'modelos') {
-    catalogos.modelos = catalogos.modelos.filter(m => m !== valor);
+    catalogos.areas = catalogos.areas.filter(a => !(a.nombre === valor && a.departamento === padre));
   }
   guardarCatalogosEnStorage();
   renderizarListaCatalogo(tipo, listElement);
@@ -167,68 +370,90 @@ function eliminarElementoCatalogo(tipo, valor, deptoPadre, listElement) {
 }
 
 function renderizarListaCatalogo(tipo, listElement) {
-  let items = [];
-  if (tipo === 'departamentos') {
-    items = catalogos.departamentos;
-    listElement.innerHTML = items.map(d => `
+  let html = '';
+  if (tipo === 'tiposEquipo') {
+    html = catalogos.tiposEquipo.map(t => `
+      <li class="catalog-item">
+        <span>${escapeHtml(t)}</span>
+        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('tiposEquipo','${escapeHtml(t)}', null, document.getElementById('tipo-equipo-list'))">✕</button>
+      </li>`).join('');
+  } else if (tipo === 'marcas') {
+    html = catalogos.marcas.map(m => `
+      <li class="catalog-item">
+        <span>${escapeHtml(m.nombre)} <small>(${escapeHtml(m.tipoEquipo)})</small></span>
+        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('marcas','${escapeHtml(m.nombre)}','${escapeHtml(m.tipoEquipo)}', document.getElementById('marca-catalogo-list'))">✕</button>
+      </li>`).join('');
+  } else if (tipo === 'modelos') {
+    html = catalogos.modelos.map(m => `
+      <li class="catalog-item">
+        <span>${escapeHtml(m.nombre)} <small>(${escapeHtml(m.marca)})</small></span>
+        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('modelos','${escapeHtml(m.nombre)}','${escapeHtml(m.marca)}', document.getElementById('modelo-catalogo-list'))">✕</button>
+      </li>`).join('');
+  } else if (tipo === 'departamentos') {
+    html = catalogos.departamentos.map(d => `
       <li class="catalog-item">
         <span>${escapeHtml(d)}</span>
         <button class="btn-remove-item" onclick="eliminarElementoCatalogo('departamentos','${escapeHtml(d)}', null, document.getElementById('dep-catalogo-list'))">✕</button>
-      </li>
-    `).join('');
+      </li>`).join('');
   } else if (tipo === 'areas') {
-    items = catalogos.areas;
-    listElement.innerHTML = items.map(a => `
+    html = catalogos.areas.map(a => `
       <li class="catalog-item">
         <span>${escapeHtml(a.nombre)} (${escapeHtml(a.departamento)})</span>
-        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('areas','${escapeHtml(a.nombre)}', '${escapeHtml(a.departamento)}', document.getElementById('area-catalogo-list'))">✕</button>
-      </li>
-    `).join('');
-  } else if (tipo === 'marcas') {
-    items = catalogos.marcas;
-    listElement.innerHTML = items.map(m => `
-      <li class="catalog-item">
-        <span>${escapeHtml(m)}</span>
-        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('marcas','${escapeHtml(m)}', null, document.getElementById('marca-catalogo-list'))">✕</button>
-      </li>
-    `).join('');
-  } else if (tipo === 'modelos') {
-    items = catalogos.modelos;
-    listElement.innerHTML = items.map(m => `
-      <li class="catalog-item">
-        <span>${escapeHtml(m)}</span>
-        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('modelos','${escapeHtml(m)}', null, document.getElementById('modelo-catalogo-list'))">✕</button>
-      </li>
-    `).join('');
+        <button class="btn-remove-item" onclick="eliminarElementoCatalogo('areas','${escapeHtml(a.nombre)}','${escapeHtml(a.departamento)}', document.getElementById('area-catalogo-list'))">✕</button>
+      </li>`).join('');
   }
+  listElement.innerHTML = html || '<p class="placeholder-text">No hay elementos.</p>';
 }
 
 function poblarSelectsCatalogo() {
-  // Departamentos (formulario registro)
+  // Tipos de equipo
+  tipoEquipo.innerHTML = '<option value="">Tipo...</option>' +
+    catalogos.tiposEquipo.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+
+  // Marcas en formulario (depende de tipo, se actualiza en cascada)
+  actualizarMarcasPorTipo();
+
+  // Modelos (depende de marca)
+  actualizarModelosPorMarca();
+
+  // Departamentos
   selectDepartamento.innerHTML = '<option value="">Seleccione...</option>' +
     catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
 
-  // Áreas inicial (todas, se filtrará después)
-  poblarAreasFormulario();
+  filtrarAreasFormulario();
 
-  // Marcas y Modelos (formulario registro)
-  selectMarcaEquipo.innerHTML = '<option value="">Marca...</option>' +
-    catalogos.marcas.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
-  selectModeloEquipo.innerHTML = '<option value="">Modelo...</option>' +
-    catalogos.modelos.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
-
-  // Select de departamento en catálogo de áreas
+  // Selects de configuración
+  marcaTipoSelect.innerHTML = '<option value="">Seleccione tipo de equipo</option>' +
+    catalogos.tiposEquipo.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  modeloMarcaSelect.innerHTML = '<option value="">Seleccione marca</option>' +
+    catalogos.marcas.map(m => `<option value="${escapeHtml(m.nombre)}">${escapeHtml(m.nombre)} (${escapeHtml(m.tipoEquipo)})</option>`).join('');
   areaDeptoSelect.innerHTML = '<option value="">Seleccione departamento</option>' +
     catalogos.departamentos.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+
+  // Refrescar listas visuales si está en config
+  if (currentTab === 'configuracion') renderizarListasConfiguracion();
 }
 
-function poblarAreasFormulario(areasFiltradas = null) {
-  if (!areasFiltradas) {
-    // Si no se pasa filtro, usar todas las áreas
-    areasFiltradas = catalogos.areas;
+function actualizarMarcasPorTipo() {
+  const tipoSeleccionado = tipoEquipo.value;
+  selectMarcaEquipo.disabled = !tipoSeleccionado;
+  selectMarcaEquipo.innerHTML = '<option value="">Marca...</option>';
+  selectModeloEquipo.disabled = true;
+  selectModeloEquipo.innerHTML = '<option value="">Modelo...</option>';
+  if (tipoSeleccionado) {
+    const marcasFiltradas = catalogos.marcas.filter(m => m.tipoEquipo === tipoSeleccionado);
+    selectMarcaEquipo.innerHTML += marcasFiltradas.map(m => `<option value="${escapeHtml(m.nombre)}">${escapeHtml(m.nombre)}</option>`).join('');
   }
-  selectArea.innerHTML = '<option value="">Seleccione...</option>' +
-    areasFiltradas.map(a => `<option value="${escapeHtml(a.nombre)}">${escapeHtml(a.nombre)}</option>`).join('');
+}
+
+function actualizarModelosPorMarca() {
+  const marcaSeleccionada = selectMarcaEquipo.value;
+  selectModeloEquipo.disabled = !marcaSeleccionada;
+  selectModeloEquipo.innerHTML = '<option value="">Modelo...</option>';
+  if (marcaSeleccionada) {
+    const modelosFiltrados = catalogos.modelos.filter(m => m.marca === marcaSeleccionada);
+    selectModeloEquipo.innerHTML += modelosFiltrados.map(m => `<option value="${escapeHtml(m.nombre)}">${escapeHtml(m.nombre)}</option>`).join('');
+  }
 }
 
 function filtrarAreasFormulario() {
@@ -240,7 +465,150 @@ function filtrarAreasFormulario() {
   }
   selectArea.disabled = false;
   const areasFiltradas = catalogos.areas.filter(a => a.departamento === deptoSeleccionado);
-  poblarAreasFormulario(areasFiltradas);
+  selectArea.innerHTML = '<option value="">Seleccione...</option>' +
+    areasFiltradas.map(a => `<option value="${escapeHtml(a.nombre)}">${escapeHtml(a.nombre)}</option>`).join('');
+}
+
+// ==================== IMPORTACIÓN CSV ====================
+async function importarCSV() {
+  const file = csvFileInput.files[0];
+  if (!file) {
+    csvStatus.textContent = 'Seleccione un archivo CSV.';
+    csvStatus.className = 'status-message error';
+    return;
+  }
+  const tipo = csvTipoImport.value;
+  csvStatus.textContent = 'Procesando...';
+  csvStatus.className = 'status-message loading';
+
+  try {
+    const text = await readFile(file);
+    const lineas = text.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lineas.length < 2) throw new Error('Archivo vacío o sin datos.');
+
+    const nuevosItems = [];
+    if (tipo === 'equipos') {
+      // Formato esperado: Tipo,Marca,Modelo
+      for (let i = 1; i < lineas.length; i++) {
+        const cols = lineas[i].split(',').map(c => c.trim());
+        if (cols.length >= 3) {
+          const tipo = capitalizarPalabras(cols[0]);
+          const marca = cols[1].toUpperCase();
+          const modelo = cols[2].toUpperCase();
+          if (tipo && marca && modelo) nuevosItems.push({ tipo, marca, modelo });
+        }
+      }
+      // Deduplicar y fusionar
+      nuevosItems.forEach(item => {
+        if (!catalogos.tiposEquipo.includes(item.tipo)) catalogos.tiposEquipo.push(item.tipo);
+        if (!catalogos.marcas.some(m => m.nombre === item.marca && m.tipoEquipo === item.tipo))
+          catalogos.marcas.push({ nombre: item.marca, tipoEquipo: item.tipo });
+        if (!catalogos.modelos.some(m => m.nombre === item.modelo && m.marca === item.marca))
+          catalogos.modelos.push({ nombre: item.modelo, marca: item.marca });
+      });
+    } else if (tipo === 'ubicaciones') {
+      // Formato: Departamento, Área
+      for (let i = 1; i < lineas.length; i++) {
+        const cols = lineas[i].split(',').map(c => c.trim());
+        if (cols.length >= 2) {
+          const depto = capitalizarPalabras(cols[0]);
+          const area = capitalizarPalabras(cols[1]);
+          if (depto && area) nuevosItems.push({ depto, area });
+        }
+      }
+      nuevosItems.forEach(item => {
+        if (!catalogos.departamentos.includes(item.depto)) catalogos.departamentos.push(item.depto);
+        if (!catalogos.areas.some(a => a.nombre === item.area && a.departamento === item.depto))
+          catalogos.areas.push({ nombre: item.area, departamento: item.depto });
+      });
+    }
+
+    catalogos.departamentos.sort();
+    catalogos.tiposEquipo.sort();
+    catalogos.marcas.sort((a,b) => a.nombre.localeCompare(b.nombre));
+    catalogos.modelos.sort((a,b) => a.nombre.localeCompare(b.nombre));
+    catalogos.areas.sort((a,b) => a.nombre.localeCompare(b.nombre));
+
+    guardarCatalogosEnStorage();
+    poblarSelectsCatalogo();
+    csvFileInput.value = '';
+    csvStatus.textContent = `✅ Importados ${nuevosItems.length} registros sin duplicados.`;
+    csvStatus.className = 'status-message success';
+    setTimeout(() => { csvStatus.textContent = ''; }, 4000);
+  } catch (error) {
+    console.error(error);
+    csvStatus.textContent = 'Error al procesar CSV: ' + error.message;
+    csvStatus.className = 'status-message error';
+  }
+}
+
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Error al leer archivo'));
+    reader.readAsText(file);
+  });
+}
+
+// ==================== ADMINISTRACIÓN DE USUARIOS ====================
+function agregarOActualizarUsuario() {
+  const usuario = adminUsuario.value.trim();
+  const password = adminPassword.value.trim();
+  const rol = adminRol.value;
+  if (!usuario || !password) return alert('Usuario y contraseña obligatorios.');
+
+  const permisos = {
+    exportar: permExportar.checked,
+    editar: permEditar.checked,
+    eliminar: permEliminar.checked
+  };
+
+  let usuarios = obtenerUsuarios();
+  const existente = usuarios.find(u => u.usuario === usuario);
+  if (existente) {
+    existente.password = password;
+    existente.rol = rol;
+    existente.permisos = permisos;
+  } else {
+    usuarios.push({ usuario, password, rol, permisos });
+  }
+  guardarUsuarios(usuarios);
+  adminUsuario.value = '';
+  adminPassword.value = '';
+  renderTablaUsuarios();
+}
+
+function eliminarUsuario(usuario) {
+  if (usuario === 'admin') return alert('No se puede eliminar al admin principal.');
+  let usuarios = obtenerUsuarios();
+  usuarios = usuarios.filter(u => u.usuario !== usuario);
+  guardarUsuarios(usuarios);
+  renderTablaUsuarios();
+}
+
+function renderTablaUsuarios() {
+  const usuarios = obtenerUsuarios();
+  if (usuarios.length === 0) {
+    usuariosTableContainer.innerHTML = '<p style="text-align:center;padding:20px;">No hay usuarios registrados.</p>';
+    return;
+  }
+  let html = `<table>
+    <thead><tr><th>Usuario</th><th>Rol</th><th>Permisos</th><th>Acción</th></tr></thead><tbody>`;
+  usuarios.forEach(u => {
+    const permisosStr = [];
+    if (u.permisos.exportar) permisosStr.push('Exportar');
+    if (u.permisos.editar) permisosStr.push('Editar');
+    if (u.permisos.eliminar) permisosStr.push('Eliminar');
+    html += `<tr>
+      <td>${escapeHtml(u.usuario)}</td>
+      <td>${u.rol === 'admin' ? 'Administrador' : 'Operador'}</td>
+      <td>${permisosStr.join(', ') || 'Ninguno'}</td>
+      <td><button class="btn btn-delete" onclick="eliminarUsuario('${escapeHtml(u.usuario)}')">🗑️</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  usuariosTableContainer.innerHTML = html;
 }
 
 // ==================== PESTAÑAS ====================
@@ -248,6 +616,10 @@ function setupTabs() {
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
+      if ((tab === 'configuracion' || tab === 'admin') && (!currentUser || currentUser.rol !== 'admin')) {
+        alert('Acceso restringido.');
+        return;
+      }
       switchTab(tab);
     });
   });
@@ -256,7 +628,8 @@ function setupTabs() {
 function switchTab(tab) {
   currentTab = tab;
   tabBtns.forEach(b => b.classList.remove('active'));
-  document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add('active');
+  const activeBtn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
   tabContents.forEach(c => c.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
 
@@ -266,22 +639,22 @@ function switchTab(tab) {
     filtersBar.style.display = 'none';
   }
 
-  if (tab === 'configuracion') {
-    renderizarListasConfiguracion();
-  }
+  if (tab === 'configuracion') renderizarListasConfiguracion();
+  if (tab === 'admin') renderTablaUsuarios();
 
   actualizarVista();
 }
 
 function renderizarListasConfiguracion() {
-  renderizarListaCatalogo('departamentos', depList);
-  renderizarListaCatalogo('areas', areaList);
+  renderizarListaCatalogo('tiposEquipo', tipoEquipoList);
   renderizarListaCatalogo('marcas', marcaList);
   renderizarListaCatalogo('modelos', modeloList);
-  poblarSelectsCatalogo(); // por si acaso
+  renderizarListaCatalogo('departamentos', depList);
+  renderizarListaCatalogo('areas', areaList);
+  poblarSelectsCatalogo();
 }
 
-// ==================== FILTROS (Dashboard/Reportes) ====================
+// ==================== FILTROS ====================
 function setupFilters() {
   filterPiso.addEventListener('input', () => { filters.piso = filterPiso.value.trim().toLowerCase(); actualizarVista(); });
   filterDepartamento.addEventListener('input', () => { filters.departamento = filterDepartamento.value.trim().toLowerCase(); actualizarVista(); });
@@ -372,7 +745,6 @@ async function guardarEstacion() {
   };
 
   registros.unshift(registroOptimista);
-  // Limpiar solo sección de usuario y equipos, NO ubicación
   limpiarSeccionUsuarioYEquipos();
   actualizarVista();
   mostrarStatus('loading', 'Guardando...');
@@ -395,6 +767,7 @@ async function guardarEstacion() {
 }
 
 async function eliminarEstacion(id) {
+  if (!currentUser || !currentUser.permisos.eliminar) return alert('No tiene permiso para eliminar.');
   const registroEliminado = registros.find(r => r.id === id);
   registros = registros.filter(r => r.id !== id);
   actualizarVista();
@@ -434,7 +807,9 @@ function eliminarEquipoTemporal(index) {
 function limpiarCamposEquipo() {
   tipoEquipo.value = '';
   selectMarcaEquipo.value = '';
+  selectMarcaEquipo.disabled = true;
   selectModeloEquipo.value = '';
+  selectModeloEquipo.disabled = true;
   serieEquipo.value = '';
   activoEquipo.value = '';
 }
@@ -490,14 +865,14 @@ function limpiarStatus() { formStatus.textContent = ''; formStatus.className = '
 
 // ==================== RENDERIZADO DE VISTAS ====================
 function actualizarVista() {
-  if (currentTab === 'registro' || currentTab === 'configuracion') return;
+  if (currentTab === 'registro' || currentTab === 'configuracion' || currentTab === 'admin') return;
   const filtrados = aplicarFiltros(registros);
   actualizarFiltrosDatalist();
   if (currentTab === 'dashboard') {
     renderStats(filtrados);
-    renderTable(dashboardTableContainer, filtrados);
+    renderTable(dashboardTableContainer, filtrados, true);
   } else if (currentTab === 'reportes') {
-    renderTable(reportesTableContainer, filtrados);
+    renderTable(reportesTableContainer, filtrados, false);
   }
 }
 
@@ -543,18 +918,20 @@ function renderStats(data) {
   `;
 }
 
-function renderTable(container, data) {
+function renderTable(container, data, isDashboard = false) {
   if (data.length === 0) {
     container.innerHTML = '<p style="text-align:center;padding:20px;">No se encontraron registros.</p>';
     return;
   }
+  const puedeEliminar = currentUser && currentUser.permisos.eliminar;
   let html = `
     <table>
       <thead>
         <tr>
           <th>Edificio</th><th>Piso</th><th>Depto</th><th>Área</th>
           <th>Asignado</th><th>Cargo</th>
-          <th style="width:50px;"></th><th style="width:50px;">Acción</th>
+          <th style="width:50px;"></th>
+          ${puedeEliminar ? '<th style="width:50px;">Acción</th>' : ''}
         </tr>
       </thead>
       <tbody>
@@ -571,10 +948,10 @@ function renderTable(container, data) {
         <td>${escapeHtml(r.asignado || '—')}</td>
         <td>${escapeHtml(r.cargo || '—')}</td>
         <td style="text-align:center;"><span class="expand-icon" id="icon-${rowId}">▶</span></td>
-        <td><button class="btn btn-delete" onclick="event.stopPropagation(); eliminarEstacion('${rowId}')">🗑️</button></td>
+        ${puedeEliminar ? `<td><button class="btn btn-delete" onclick="event.stopPropagation(); eliminarEstacion('${rowId}')">🗑️</button></td>` : ''}
       </tr>
       <tr class="detail-row" id="detail-${rowId}" style="display:none;">
-        <td colspan="8">
+        <td colspan="${puedeEliminar ? 8 : 7}">
           <strong>Equipos Asignados:</strong>
           <table class="sub-table">
             <thead><tr><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Activo Fijo</th></tr></thead>
@@ -622,6 +999,7 @@ function parseEquipos(equipos) {
 
 // ==================== EXPORTAR CSV ====================
 btnExportCSV.addEventListener('click', () => {
+  if (!currentUser || !currentUser.permisos.exportar) return alert('No tiene permiso para exportar.');
   const filtrados = aplicarFiltros(registros);
   if (filtrados.length === 0) return alert('No hay datos para exportar.');
 
