@@ -36,16 +36,34 @@
 
   <!-- ==================== CABECERA ==================== -->
   <header class="header-container">
-    <div class="logo-area">
-      <span class="logo-icon">🖥️</span>
-      <h1>INDRHI</h1>
+    <div class="logo-area" style="display: flex; align-items: center;">
+      
+      <svg viewBox="0 0 600 110" style="height: 48px; width: auto; display: block;" xmlns="http://www.w3.org/2000/svg">
+        
+        <g fill="#ffffff">
+          <path d="M 55 15 A 35 35 0 1 0 55 85 A 35 35 0 1 0 55 15 Z M 55 25 A 25 25 0 1 1 55 75 A 25 25 0 1 1 55 25 Z" />
+          <rect x="20" y="15" width="10" height="70" />
+          <rect x="20" y="75" width="35" height="10" />
+          <rect x="80" y="15" width="10" height="70" />
+          <rect x="55" y="15" width="35" height="10" />
+        </g>
+
+        <g fill="none" stroke="#ffffff" stroke-width="3.5">
+          <path d="M 5 40 Q 22 30 38 40 T 72 40 T 105 40" />
+          <path d="M 5 50 Q 22 40 38 50 T 72 50 T 105 50" />
+          <path d="M 5 60 Q 22 50 38 60 T 72 60 T 105 60" />
+        </g>
+
+        <rect x="20" y="94" width="70" height="6" fill="#ef4444" />
+
+        <text x="130" y="48" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="32" fill="#ffffff" letter-spacing="1">INSTITUTO NACIONAL DE</text>
+        <text x="130" y="85" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="32" fill="#ffffff" letter-spacing="1">RECURSOS HIDRÁULICOS</text>
+      </svg>
+      
     </div>
     <p class="subtitle">Inventario Tecnológico de Estaciones de Trabajo</p>
-    <div id="user-info" style="display:none;">
-      <span id="user-name-display"></span>
-      <button id="btn-logout" class="btn btn-small btn-secondary">🚪 Salir</button>
-    </div>
   </header>
+
 
   <nav id="tab-nav">
     <button class="tab-btn active" data-tab="registro">📝 Registro</button>
