@@ -96,13 +96,15 @@
           <div class="form-row">
             <div class="form-group">
               <label for="departamento">Departamento *</label>
-              <select id="departamento" required>
+              <input type="text" id="departamento" placeholder="Escribe o selecciona..." list="datalist-departamentos" required>
+<datalist id="datalist-departamentos"></datalist>
                 <option value="">Seleccione...</option>
               </select>
             </div>
             <div class="form-group">
               <label for="area">Área</label>
-              <select id="area" disabled>
+              <input type="text" id="area" placeholder="Escribe o selecciona..." list="datalist-areas">
+<datalist id="datalist-areas"></datalist>
                 <option value="">Seleccione departamento primero</option>
               </select>
             </div>
@@ -125,13 +127,10 @@
           <div class="equipos-form-inline">
             <select id="tipo-equipo">
               <option value="">Tipo...</option>
-            </select>
-            <select id="marca-equipo" disabled>
-              <option value="">Marca...</option>
-            </select>
-            <select id="modelo-equipo" disabled>
-              <option value="">Modelo...</option>
-            </select>
+            <input type="text" id="marca-equipo" placeholder="Marca..." list="datalist-marcas-equipo">
+<datalist id="datalist-marcas-equipo"></datalist>
+<input type="text" id="modelo-equipo" placeholder="Modelo..." list="datalist-modelos-equipo">
+<datalist id="datalist-modelos-equipo"></datalist>
             <input type="text" id="serie-equipo" placeholder="Serie">
             <input type="text" id="activo-equipo" placeholder="Activo Fijo">
             <button type="button" id="btn-agregar-equipo" class="btn btn-add">+ Agregar</button>
