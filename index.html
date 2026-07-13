@@ -7,19 +7,52 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- ==================== MODAL DE LOGIN ==================== -->
+  <div id="login-overlay" class="modal-overlay">
+    <div class="modal-card">
+      <h2>🔐 Acceso al Sistema</h2>
+      <p>Seleccione su perfil de ingreso</p>
+      <div class="login-buttons" id="login-buttons">
+        <button id="btn-operador" class="btn btn-secondary login-btn">🛠️ Operador de Inventario</button>
+        <button id="btn-admin" class="btn btn-primary login-btn">👑 Administrador</button>
+      </div>
+      <form id="admin-login-form" class="login-form" style="display:none;">
+        <div class="form-group">
+          <label for="login-usuario">Usuario</label>
+          <input type="text" id="login-usuario" placeholder="Nombre de usuario" required autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Contraseña</label>
+          <input type="password" id="login-password" placeholder="Contraseña" required>
+        </div>
+        <div class="form-actions" style="justify-content:center;">
+          <button type="button" id="btn-volver" class="btn btn-secondary">← Volver</button>
+          <button type="submit" class="btn btn-primary">Ingresar</button>
+        </div>
+        <p id="login-error" class="status-message error" style="display:none;"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== CABECERA ==================== -->
   <header class="header-container">
     <div class="logo-area">
       <span class="logo-icon">🖥️</span>
       <h1>INDRHI</h1>
     </div>
     <p class="subtitle">Inventario Tecnológico de Estaciones de Trabajo</p>
+    <div id="user-info" style="display:none;">
+      <span id="user-name-display"></span>
+      <button id="btn-logout" class="btn btn-small btn-secondary">🚪 Salir</button>
+    </div>
   </header>
 
   <nav id="tab-nav">
     <button class="tab-btn active" data-tab="registro">📝 Registro</button>
     <button class="tab-btn" data-tab="dashboard">📊 Dashboard y Búsqueda</button>
     <button class="tab-btn" data-tab="reportes">📄 Reportes</button>
-    <button class="tab-btn" data-tab="configuracion">⚙️ Configuración</button>
+    <button class="tab-btn" data-tab="configuracion" id="tab-config-btn">⚙️ Configuración</button>
+    <button class="tab-btn" data-tab="admin" id="tab-admin-btn" style="display:none;">👥 Admin</button>
   </nav>
 
   <div id="filters-bar" class="card" style="display:none;">
@@ -89,21 +122,11 @@
           <div class="equipos-form-inline">
             <select id="tipo-equipo">
               <option value="">Tipo...</option>
-              <option value="Computadora Escritorio">Computadora Escritorio</option>
-              <option value="Laptop">Laptop</option>
-              <option value="Monitor">Monitor</option>
-              <option value="Impresora">Impresora</option>
-              <option value="UPS">UPS</option>
-              <option value="Servidor">Servidor</option>
-              <option value="Switch">Switch</option>
-              <option value="Router">Router</option>
-              <option value="Teléfono IP">Teléfono IP</option>
-              <option value="Otro">Otro</option>
             </select>
-            <select id="marca-equipo">
+            <select id="marca-equipo" disabled>
               <option value="">Marca...</option>
             </select>
-            <select id="modelo-equipo">
+            <select id="modelo-equipo" disabled>
               <option value="">Modelo...</option>
             </select>
             <input type="text" id="serie-equipo" placeholder="Serie">
@@ -137,11 +160,47 @@
       <div id="table-container-reportes" class="table-wrapper"></div>
     </section>
 
-    <!-- NUEVA PESTAÑA CONFIGURACIÓN -->
+    <!-- Pestaña Configuración -->
     <section id="tab-configuracion" class="tab-content">
       <div class="card">
         <h2>⚙️ Configuración de Catálogos</h2>
         
+        <!-- Tipos de Equipo (NUEVO) -->
+        <div class="catalog-section">
+          <h3>Tipos de Equipo</h3>
+          <div class="catalog-input-row">
+            <input type="text" id="tipo-equipo-input" placeholder="Nuevo tipo de equipo">
+            <button id="btn-tipo-add" class="btn btn-add btn-small">+ Agregar</button>
+          </div>
+          <ul id="tipo-equipo-list" class="catalog-list"></ul>
+        </div>
+
+        <!-- Marcas (con dependencia de Tipo) -->
+        <div class="catalog-section">
+          <h3>Marcas</h3>
+          <div class="catalog-input-row">
+            <select id="marca-tipo-select">
+              <option value="">Seleccione tipo de equipo</option>
+            </select>
+            <input type="text" id="marca-catalogo-input" placeholder="Nueva marca">
+            <button id="btn-marca-add" class="btn btn-add btn-small">+ Agregar</button>
+          </div>
+          <ul id="marca-catalogo-list" class="catalog-list"></ul>
+        </div>
+
+        <!-- Modelos (con dependencia de Marca) -->
+        <div class="catalog-section">
+          <h3>Modelos</h3>
+          <div class="catalog-input-row">
+            <select id="modelo-marca-select">
+              <option value="">Seleccione marca</option>
+            </select>
+            <input type="text" id="modelo-catalogo-input" placeholder="Nuevo modelo">
+            <button id="btn-modelo-add" class="btn btn-add btn-small">+ Agregar</button>
+          </div>
+          <ul id="modelo-catalogo-list" class="catalog-list"></ul>
+        </div>
+
         <!-- Departamentos -->
         <div class="catalog-section">
           <h3>Departamentos</h3>
@@ -152,7 +211,7 @@
           <ul id="dep-catalogo-list" class="catalog-list"></ul>
         </div>
 
-        <!-- Áreas (con dependencia de departamento) -->
+        <!-- Áreas -->
         <div class="catalog-section">
           <h3>Áreas</h3>
           <div class="catalog-input-row">
@@ -165,31 +224,62 @@
           <ul id="area-catalogo-list" class="catalog-list"></ul>
         </div>
 
-        <!-- Marcas -->
-        <div class="catalog-section">
-          <h3>Marcas</h3>
+        <!-- IMPORTACIÓN CSV -->
+        <div class="catalog-section csv-import-section">
+          <h3>📥 Importar Catálogos desde CSV</h3>
           <div class="catalog-input-row">
-            <input type="text" id="marca-catalogo-input" placeholder="Nueva marca">
-            <button id="btn-marca-add" class="btn btn-add btn-small">+ Agregar</button>
+            <select id="csv-tipo-import">
+              <option value="equipos">Equipos (Tipo, Marca, Modelo)</option>
+              <option value="ubicaciones">Ubicaciones (Departamento, Área)</option>
+            </select>
+            <input type="file" id="csv-file-input" accept=".csv">
+            <button id="btn-import-csv" class="btn btn-primary btn-small">Importar</button>
           </div>
-          <ul id="marca-catalogo-list" class="catalog-list"></ul>
+          <p id="csv-status" class="status-message" style="margin-top:8px;"></p>
         </div>
+      </div>
+    </section>
 
-        <!-- Modelos -->
-        <div class="catalog-section">
-          <h3>Modelos</h3>
-          <div class="catalog-input-row">
-            <input type="text" id="modelo-catalogo-input" placeholder="Nuevo modelo">
-            <button id="btn-modelo-add" class="btn btn-add btn-small">+ Agregar</button>
+    <!-- Pestaña Admin (solo administradores) -->
+    <section id="tab-admin" class="tab-content">
+      <div class="card">
+        <h2>👥 Gestión de Usuarios</h2>
+        <div class="form-row" style="align-items:flex-end;">
+          <div class="form-group">
+            <label for="admin-usuario">Usuario</label>
+            <input type="text" id="admin-usuario" placeholder="Nombre de usuario">
           </div>
-          <ul id="modelo-catalogo-list" class="catalog-list"></ul>
+          <div class="form-group">
+            <label for="admin-password">Contraseña</label>
+            <input type="password" id="admin-password" placeholder="Contraseña">
+          </div>
+          <div class="form-group">
+            <label for="admin-rol">Rol</label>
+            <select id="admin-rol">
+              <option value="operador">Operador</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex-direction:row; align-items:center; gap:12px;">
+            <label style="display:flex; align-items:center; gap:4px;">
+              <input type="checkbox" id="perm-exportar" checked> Exportar
+            </label>
+            <label style="display:flex; align-items:center; gap:4px;">
+              <input type="checkbox" id="perm-editar" checked> Editar
+            </label>
+            <label style="display:flex; align-items:center; gap:4px;">
+              <input type="checkbox" id="perm-eliminar" checked> Eliminar
+            </label>
+          </div>
+          <button id="btn-agregar-usuario" class="btn btn-add">+ Crear Usuario</button>
         </div>
+        <div id="usuarios-table-container" class="table-wrapper" style="margin-top:20px;"></div>
       </div>
     </section>
   </main>
 
   <footer>
-    <p>INDRHI &copy; <span id="year"></span> - Sistema de Inventario Tecnológico v1.0</p>
+    <p>INDRHI &copy; <span id="year"></span> - Sistema de Inventario Tecnológico v2.0</p>
   </footer>
 
   <script src="app.js"></script>
