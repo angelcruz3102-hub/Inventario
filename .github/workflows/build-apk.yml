@@ -9,54 +9,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      # Ruta fija dentro del workspace — aislada del SDK preinstalado del runner
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
-      ANDROID_HOME: ${{ github.workspace }}/android-sdk
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # --- Setup del SDK en la ubicación aislada ---
-      - name: Setup Android SDK (isolated + pinned cmdline-tools)
+      # --- Setup del SDK (sintaxis correcta para v3) ---
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          api-level: 34
-          build-tools: 34.0.0
-          components: |
-            platform-tools
-            platforms;android-34
-            build-tools;34.0.0
-            cmdline-tools;9.0
+          cmdline-tools-version: '9.0'
+          accept-android-sdk-licenses: true
+          packages: 'platform-tools'
 
-      # --- Instalación explícita SIN --update global ---
-      - name: Ensure SDK components & accept licenses
+      # --- Instalar los paquetes concretos que necesita Gradle ---
+      - name: Install Android SDK packages
         run: |
-          set -euo pipefail
-          SDKMANAGER="$(ls -1 ${ANDROID_SDK_ROOT}/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1 || true)"
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found under ${ANDROID_SDK_ROOT}/cmdline-tools — aborting"
-            ls -la "${ANDROID_SDK_ROOT}" || true
-            exit 1
-          fi
-          echo "Using sdkmanager: $SDKMANAGER"
-          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --install \
-            "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;9.0"
-          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --licenses
-
-      - name: Verify SDK location
-        run: |
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls -la "$ANDROID_SDK_ROOT" || true
-          ls -la "$ANDROID_SDK_ROOT/platforms" || true
-          ls -la "$ANDROID_SDK_ROOT/build-tools" || true
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager --licenses <<< "y" > /dev/null 2>&1 || true
 
       - name: Generate Gradle Wrapper
         run: |
