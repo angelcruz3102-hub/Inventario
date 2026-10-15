@@ -19,19 +19,14 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # --- Setup del SDK (sintaxis correcta para v3) ---
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: '9.0'
-          accept-android-sdk-licenses: true
-          packages: 'platform-tools'
-
-      # --- Instalar los paquetes concretos que necesita Gradle ---
-      - name: Install Android SDK packages
+      - name: Accept Android SDK licenses
         run: |
-          sdkmanager --install "platforms;android-34" "build-tools;34.0.0"
-          sdkmanager --licenses <<< "y" > /dev/null 2>&1 || true
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+
+      - name: Install required SDK components
+        run: |
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install \
+            "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
       - name: Generate Gradle Wrapper
         run: |
