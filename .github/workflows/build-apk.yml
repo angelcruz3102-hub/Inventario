@@ -9,6 +9,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      # Aislamos el SDK en una carpeta temporal para no tocar el del runner
+      ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
+      ANDROID_HOME: ${{ runner.temp }}/android-sdk
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,8 +24,8 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # --- FIX: pin cmdline-tools a una versión estable (no 'latest') ---
-      - name: Setup Android SDK
+      # --- Setup del SDK en la ubicación aislada ---
+      - name: Setup Android SDK (isolated + pinned cmdline-tools)
         uses: android-actions/setup-android@v3
         with:
           api-level: 34
@@ -31,23 +36,20 @@ jobs:
             build-tools;34.0.0
             cmdline-tools;9.0
 
-      # --- Asegurar componentes e instalar licencias de forma robusta ---
+      # --- Instalación explícita SIN --update global ---
       - name: Ensure SDK components & accept licenses
         run: |
-          set -e
-          if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
-            SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
-          else
-            SDKMANAGER="$(ls -1 ${ANDROID_SDK_ROOT}/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1 || true)"
-          fi
+          set -euo pipefail
+          SDKMANAGER="$(ls -1 ${ANDROID_SDK_ROOT}/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1 || true)"
           if [ -z "$SDKMANAGER" ]; then
             echo "sdkmanager not found under ${ANDROID_SDK_ROOT}/cmdline-tools — aborting"
+            ls -la "${ANDROID_SDK_ROOT}" || true
             exit 1
           fi
           echo "Using sdkmanager: $SDKMANAGER"
-          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --update || true
-          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;9.0" || true
-          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --licenses || true
+          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --install \
+            "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;9.0"
+          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --licenses
 
       - name: Generate Gradle Wrapper
         run: |
@@ -64,4 +66,3 @@ jobs:
         with:
           name: INDRHI-Inventario-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
-
