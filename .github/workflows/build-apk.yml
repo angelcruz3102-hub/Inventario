@@ -19,7 +19,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # --- FIX: indicar explícitamente los componentes del SDK ---
+      # --- FIX: pin cmdline-tools a una versión estable (no 'latest') ---
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -29,19 +29,24 @@ jobs:
             platform-tools
             platforms;android-34
             build-tools;34.0.0
-            cmdline-tools;latest
+            cmdline-tools;9.0
 
-      # --- Aceptar licencias de forma explícita antes de compilar ---
-      - name: Accept Android SDK licenses
+      # --- Asegurar componentes e instalar licencias de forma robusta ---
+      - name: Ensure SDK components & accept licenses
         run: |
           set -e
-          SDKMANAGER=""
           if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
             SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
           else
-            SDKMANAGER="$(ls -1 ${ANDROID_SDK_ROOT}/cmdline-tools/*/bin/sdkmanager | head -n1)"
+            SDKMANAGER="$(ls -1 ${ANDROID_SDK_ROOT}/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1 || true)"
+          fi
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found under ${ANDROID_SDK_ROOT}/cmdline-tools — aborting"
+            exit 1
           fi
           echo "Using sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --update || true
+          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;9.0" || true
           yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --licenses || true
 
       - name: Generate Gradle Wrapper
