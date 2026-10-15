@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#004b87">
+  <meta name="description" content="Sistema de Inventario y Descargo de Equipos - INDRHI">
+  <title>INDRHI | Inventario y Descargo de Equipos</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <div class="brand">
+        <div class="brand__logo" aria-hidden="true">INDRHI</div>
+        <div class="brand__text">
+          <h1>Inventario y Descargo de Equipos</h1>
+          <p>Instituto Nacional de Recursos Hidráulicos</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="contenedor">
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Registro de equipo</h2>
+        <p class="card__sub">Complete los datos y pulse <strong>Guardar equipo</strong>.</p>
+      </div>
+      <form id="formEquipo" novalidate autocomplete="off">
+        <div id="formMensaje" class="form-mensaje" role="alert" hidden></div>
+
+        <fieldset class="grupo">
+          <legend class="grupo__legend"><span class="grupo__num">1</span> Ubicación</legend>
+          <div class="grid">
+            <div class="campo">
+              <label for="edificio">Edificio <span class="req">*</span></label>
+              <input type="text" id="edificio" name="edificio" list="listaEdificios" placeholder="Ej.: Edificio Central" autocapitalize="words">
+              <datalist id="listaEdificios">
+                <option value="Edificio Central"></option>
+                <option value="Edificio Anexo"></option>
+                <option value="Edificio de Talleres"></option>
+                <option value="Almacén General"></option>
+                <option value="Subestación"></option>
+              </datalist>
+            </div>
+            <div class="campo">
+              <label for="piso">Piso</label>
+              <input type="text" id="piso" name="piso" list="listaPisos" placeholder="Ej.: 2do" inputmode="text">
+              <datalist id="listaPisos">
+                <option value="Sótano"></option>
+                <option value="1ro"></option>
+                <option value="2do"></option>
+                <option value="3ro"></option>
+                <option value="4to"></option>
+                <option value="Azotea"></option>
+              </datalist>
+            </div>
+            <div class="campo">
+              <label for="departamento">Departamento</label>
+              <input type="text" id="departamento" name="departamento" list="listaDepartamentos" placeholder="Ej.: Recursos Humanos" autocapitalize="words">
+              <datalist id="listaDepartamentos">
+                <option value="Dirección General"></option>
+                <option value="Administración y Finanzas"></option>
+                <option value="Recursos Humanos"></option>
+                <option value="Tecnología de la Información"></option>
+                <option value="Operaciones"></option>
+                <option value="Planificación"></option>
+                <option value="Jurídica"></option>
+                <option value="Almacén"></option>
+              </datalist>
+            </div>
+            <div class="campo">
+              <label for="area">Área</label>
+              <input type="text" id="area" name="area" list="listaAreas" placeholder="Ej.: Recepción" autocapitalize="words">
+              <datalist id="listaAreas">
+                <option value="Recepción"></option>
+                <option value="Oficina"></option>
+                <option value="Sala de Servidores"></option>
+                <option value="Laboratorio"></option>
+                <option value="Almacén"></option>
+                <option value="Pasillo"></option>
+              </datalist>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="grupo">
+          <legend class="grupo__legend"><span class="grupo__num">2</span> Asignación</legend>
+          <div class="grid">
+            <div class="campo campo--ancho">
+              <label for="usuario">Usuario responsable <span class="req">*</span></label>
+              <input type="text" id="usuario" name="usuario" placeholder="Nombre y apellido del responsable" autocapitalize="words">
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="grupo">
+          <legend class="grupo__legend"><span class="grupo__num">3</span> Detalle del equipo</legend>
+          <div class="grid">
+            <div class="campo">
+              <label for="tipoEquipo">Tipo de equipo <span class="req">*</span></label>
+              <input type="text" id="tipoEquipo" name="tipoEquipo" list="listaTipos" placeholder="Ej.: Laptop" autocapitalize="words">
+              <datalist id="listaTipos">
+                <option value="Computadora de Escritorio"></option>
+                <option value="Laptop"></option>
+                <option value="Monitor"></option>
+                <option value="Impresora"></option>
+                <option value="Escáner"></option>
+                <option value="UPS"></option>
+                <option value="Proyector"></option>
+                <option value="Router"></option>
+                <option value="Switch"></option>
+                <option value="Teléfono IP"></option>
+                <option value="Aire Acondicionado"></option>
+                <option value="Otro"></option>
+              </datalist>
+            </div>
+            <div class="campo">
+              <label for="modelo">Modelo</label>
+              <input type="text" id="modelo" name="modelo" placeholder="Ej.: ThinkPad T14" autocapitalize="characters">
+            </div>
+            <div class="campo">
+              <label for="serial">Serial</label>
+              <input type="text" id="serial" name="serial" class="mono" placeholder="Ej.: PF-2ABCD3" autocapitalize="characters" spellcheck="false">
+            </div>
+            <div class="campo">
+              <label for="codigoIndrhi">Código INDRHI <span class="req">*</span></label>
+              <input type="text" id="codigoIndrhi" name="codigoIndrhi" class="mono codigo-input" placeholder="Escanee o escriba el código" autocapitalize="characters" spellcheck="false" inputmode="text" enterkeyhint="done">
+              <small class="ayuda">Compatible con lector de código de barras (entrada por teclado).</small>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="grupo">
+          <legend class="grupo__legend"><span class="grupo__num">4</span> Control</legend>
+          <div class="grid">
+            <div class="campo">
+              <label for="estado">Estado</label>
+              <select id="estado" name="estado">
+                <option value="Operativo" selected>Operativo</option>
+                <option value="Dañado">Dañado</option>
+                <option value="Faltante">Faltante</option>
+                <option value="Para Descargo">Para Descargo</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="form-acciones">
+          <button type="submit" class="btn btn--primary" id="btnGuardar"><span aria-hidden="true">＋</span> Guardar equipo</button>
+          <button type="button" class="btn btn--ghost" id="btnLimpiarForm">Limpiar formulario</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="card__head card__head--fila">
+        <div>
+          <h2 class="card__title">Checklist de inventario</h2>
+          <p class="card__sub"><span id="contadorRegistros" class="contador">0</span> equipo(s) registrado(s)</p>
+        </div>
+        <div class="acciones">
+          <button type="button" class="btn btn--success" id="btnExportar"><span aria-hidden="true">⤓</span> Exportar a Excel</button>
+          <button type="button" class="btn btn--ghost" id="btnVaciar">Vaciar lista</button>
+        </div>
+      </div>
+
+      <div class="tabla-wrap">
+        <table id="tablaInventario">
+          <thead>
+            <tr>
+              <th class="col-no">No.</th>
+              <th>Edificio</th>
+              <th>Piso</th>
+              <th>Departamento</th>
+              <th>Área</th>
+              <th>Usuario responsable</th>
+              <th>Tipo de equipo</th>
+              <th>Modelo</th>
+              <th>Serial</th>
+              <th>Código INDRHI</th>
+              <th>Estado</th>
+              <th class="col-acciones">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpoTabla"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>INDRHI &copy; <span id="anioActual"></span> · Sistema de Inventario y Descargo de Equipos</p>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
