@@ -19,14 +19,40 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      # --- FIX: indicar explícitamente los componentes del SDK ---
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+          components: |
+            platform-tools
+            platforms;android-34
+            build-tools;34.0.0
+            cmdline-tools;latest
+
+      # --- Aceptar licencias de forma explícita antes de compilar ---
+      - name: Accept Android SDK licenses
+        run: |
+          set -e
+          SDKMANAGER=""
+          if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          else
+            SDKMANAGER="$(ls -1 ${ANDROID_SDK_ROOT}/cmdline-tools/*/bin/sdkmanager | head -n1)"
+          fi
+          echo "Using sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --licenses || true
+
+      - name: Generate Gradle Wrapper
+        run: |
+          cd android
+          gradle wrapper --gradle-version 8.4
 
       - name: Build Debug APK
         run: |
           cd android
-          gradle wrapper --gradle-version 8.4
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
