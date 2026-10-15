@@ -19,24 +19,33 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Accept Android SDK licenses
-        run: |
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+      # --- Gradle oficial, versión compatible con AGP 8.2.0 ---
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
 
-      - name: Install required SDK components
+      # --- Diagnóstico del SDK disponible en el runner ---
+      - name: Locate Android SDK
         run: |
-          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls -la "$ANDROID_HOME/cmdline-tools/" 2>/dev/null || true
+          ls -la "$ANDROID_SDK_ROOT/cmdline-tools/" 2>/dev/null || true
 
-      - name: Generate Gradle Wrapper
+      # --- Licencias + componentes mínimos ---
+      - name: Accept licenses and install SDK components
         run: |
-          cd android
-          gradle wrapper --gradle-version 8.4
+          SDKROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          SDKMANAGER=$(find "$SDKROOT/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -n1)
+          echo "Using SDKMANAGER: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" --install "platforms;android-34" "build-tools;34.0.0" "platform-tools" || true
 
+      # --- Compilar usando Gradle directamente (sin wrapper huérfano) ---
       - name: Build Debug APK
-        run: |
-          cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace
+        working-directory: android
+        run: gradle assembleDebug --stacktrace --warning-mode all
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
